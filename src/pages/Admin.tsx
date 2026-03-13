@@ -29,6 +29,8 @@ export default function Admin() {
   const [verifyingKey, setVerifyingKey] = useState(false);
   const [keyInfo, setKeyInfo] = useState<any>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [fundUserId, setFundUserId] = useState<string | null>(null);
+  const [fundAmount, setFundAmount] = useState('');
   // Bot repo form
   const [newRepoName, setNewRepoName] = useState('');
   const [newRepoUrl, setNewRepoUrl] = useState('');
@@ -254,30 +256,66 @@ export default function Admin() {
               <CardContent>
                 <div className="space-y-2">
                   {users.map(u => (
-                    <div key={u.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border">
-                      <div className="flex items-center gap-2">
-                        <div>
-                          <p className="font-medium text-foreground">{u.display_name || 'Unnamed'}</p>
-                          <p className="text-xs text-muted-foreground">{u.email}</p>
+                    <div key={u.id} className="space-y-2">
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border">
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <p className="font-medium text-foreground">{u.display_name || 'Unnamed'}</p>
+                            <p className="text-xs text-muted-foreground">{u.email}</p>
+                          </div>
+                          {u.banned && <Badge className="bg-destructive/20 text-destructive">Banned</Badge>}
                         </div>
-                        {u.banned && <Badge className="bg-destructive/20 text-destructive">Banned</Badge>}
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <p className="font-display font-bold text-primary">{u.balance || 0} GRT</p>
-                          <p className="text-xs text-muted-foreground">Joined {new Date(u.created_at).toLocaleDateString()}</p>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right">
+                            <p className="font-display font-bold text-primary">{u.balance || 0} GRT</p>
+                            <p className="text-xs text-muted-foreground">Joined {new Date(u.created_at).toLocaleDateString()}</p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            onClick={() => setFundUserId(fundUserId === u.id ? null : u.id)}
+                          >
+                            <Wallet className="w-3 h-3" /> Fund
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={u.banned ? 'gap-1 text-primary' : 'gap-1 text-destructive'}
+                            onClick={() => toggleBanUser(u.id, u.banned)}
+                            disabled={actionLoading === u.id || u.id === user?.id}
+                          >
+                            <Ban className="w-3 h-3" />
+                            {u.banned ? 'Unban' : 'Ban'}
+                          </Button>
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className={u.banned ? 'gap-1 text-primary' : 'gap-1 text-destructive'}
-                          onClick={() => toggleBanUser(u.id, u.banned)}
-                          disabled={actionLoading === u.id || u.id === user?.id}
-                        >
-                          <Ban className="w-3 h-3" />
-                          {u.banned ? 'Unban' : 'Ban'}
-                        </Button>
                       </div>
+                      {fundUserId === u.id && (
+                        <div className="flex items-end gap-2 pl-3 pb-2">
+                          <div className="space-y-1 flex-1">
+                            <Label className="text-xs">Amount (GRT) — use negative to deduct</Label>
+                            <Input type="number" placeholder="e.g. 100 or -50" value={fundAmount} onChange={e => setFundAmount(e.target.value)} />
+                          </div>
+                          <Button
+                            size="sm"
+                            className="gap-1"
+                            disabled={!fundAmount || actionLoading === u.id}
+                            onClick={async () => {
+                              const amount = parseInt(fundAmount);
+                              if (!amount) return;
+                              setActionLoading(u.id);
+                              await supabase.rpc('add_balance', { user_id_input: u.id, amount_input: amount });
+                              toast({ title: amount > 0 ? 'Funds added' : 'Funds deducted', description: `${Math.abs(amount)} GRT ${amount > 0 ? 'added to' : 'deducted from'} ${u.display_name || u.email}` });
+                              setFundAmount('');
+                              setFundUserId(null);
+                              setActionLoading(null);
+                              fetchAll();
+                            }}
+                          >
+                            <CheckCircle className="w-3 h-3" /> Apply
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

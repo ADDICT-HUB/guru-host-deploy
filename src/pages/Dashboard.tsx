@@ -45,6 +45,15 @@ export default function Dashboard() {
 
   useEffect(() => { fetchData(); }, [user]);
 
+  // Poll deploying bots every 15s
+  useEffect(() => {
+    const deployingBots = bots.filter(b => b.status === 'deploying');
+    if (deployingBots.length === 0) return;
+
+    const interval = setInterval(() => { fetchData(); }, 15000);
+    return () => clearInterval(interval);
+  }, [bots]);
+
   const handleRestart = async (bot: BotRow) => {
     setActionLoading(bot.id);
     const { error } = await supabase.functions.invoke('heroku-proxy', {
