@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.deploy-bot]
 verify_jwt = false
+
+[functions.heroku-verify]
+verify_jwt = false
