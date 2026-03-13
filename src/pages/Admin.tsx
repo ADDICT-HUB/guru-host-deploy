@@ -76,8 +76,9 @@ export default function Admin() {
       api_key: newKeyValue,
       max_apps: parseInt(newKeyMaxApps) || 100,
       active: true,
-    });
-    setNewKeyLabel(''); setNewKeyValue(''); setNewKeyMaxApps('100');
+      account_type: newKeyType,
+    } as any);
+    setNewKeyLabel(''); setNewKeyValue(''); setNewKeyMaxApps('100'); setNewKeyType('personal');
     toast({ title: 'API key added' });
     fetchAll();
   };
