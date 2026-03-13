@@ -259,9 +259,12 @@ export default function Admin() {
                   <div className="space-y-2">
                     {apiKeys.map(k => (
                       <div key={k.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border">
-                        <div>
-                          <p className="font-medium text-foreground">{k.label}</p>
-                          <p className="text-xs text-muted-foreground">Max: {k.max_apps} apps • {k.active ? 'Active' : 'Inactive'}</p>
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <p className="font-medium text-foreground">{k.label}</p>
+                            <p className="text-xs text-muted-foreground">Max: {k.max_apps} apps • {k.active ? 'Active' : 'Inactive'}</p>
+                          </div>
+                          <Badge className={(k as any).account_type === 'team' ? 'bg-primary/20 text-primary' : 'bg-secondary text-muted-foreground'}>{(k as any).account_type || 'personal'}</Badge>
                         </div>
                         <Button variant="ghost" size="sm" className="text-destructive" onClick={() => deleteApiKey(k.id)}>
                           <Trash2 className="w-4 h-4" />
