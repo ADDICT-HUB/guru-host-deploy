@@ -227,7 +227,7 @@ export default function Admin() {
             <Card className="bg-card border-border">
               <CardHeader><CardTitle className="font-display flex items-center gap-2"><Key className="w-5 h-5 text-primary" /> Add Heroku API Key</CardTitle></CardHeader>
               <CardContent>
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-4">
                   <div className="space-y-1">
                     <Label className="text-xs">Label</Label>
                     <Input placeholder="Account name" value={newKeyLabel} onChange={e => setNewKeyLabel(e.target.value)} />
@@ -235,6 +235,13 @@ export default function Admin() {
                   <div className="space-y-1">
                     <Label className="text-xs">API Key</Label>
                     <Input placeholder="heroku-api-key" type="password" value={newKeyValue} onChange={e => setNewKeyValue(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Type</Label>
+                    <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={newKeyType} onChange={e => setNewKeyType(e.target.value)}>
+                      <option value="personal">Personal</option>
+                      <option value="team">Team</option>
+                    </select>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Max Apps</Label>
