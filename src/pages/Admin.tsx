@@ -29,6 +29,8 @@ export default function Admin() {
   const [verifyingKey, setVerifyingKey] = useState(false);
   const [keyInfo, setKeyInfo] = useState<any>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [fundUserId, setFundUserId] = useState<string | null>(null);
+  const [fundAmount, setFundAmount] = useState('');
   // Bot repo form
   const [newRepoName, setNewRepoName] = useState('');
   const [newRepoUrl, setNewRepoUrl] = useState('');
