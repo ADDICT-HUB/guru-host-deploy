@@ -23,6 +23,7 @@ export default function Admin() {
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [newKeyLabel, setNewKeyLabel] = useState('');
   const [newKeyValue, setNewKeyValue] = useState('');
+  const [newKeyType, setNewKeyType] = useState('personal');
   const [newKeyMaxApps, setNewKeyMaxApps] = useState('100');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -75,8 +76,9 @@ export default function Admin() {
       api_key: newKeyValue,
       max_apps: parseInt(newKeyMaxApps) || 100,
       active: true,
-    });
-    setNewKeyLabel(''); setNewKeyValue(''); setNewKeyMaxApps('100');
+      account_type: newKeyType,
+    } as any);
+    setNewKeyLabel(''); setNewKeyValue(''); setNewKeyMaxApps('100'); setNewKeyType('personal');
     toast({ title: 'API key added' });
     fetchAll();
   };
@@ -225,7 +227,7 @@ export default function Admin() {
             <Card className="bg-card border-border">
               <CardHeader><CardTitle className="font-display flex items-center gap-2"><Key className="w-5 h-5 text-primary" /> Add Heroku API Key</CardTitle></CardHeader>
               <CardContent>
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-4">
                   <div className="space-y-1">
                     <Label className="text-xs">Label</Label>
                     <Input placeholder="Account name" value={newKeyLabel} onChange={e => setNewKeyLabel(e.target.value)} />
@@ -233,6 +235,13 @@ export default function Admin() {
                   <div className="space-y-1">
                     <Label className="text-xs">API Key</Label>
                     <Input placeholder="heroku-api-key" type="password" value={newKeyValue} onChange={e => setNewKeyValue(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Type</Label>
+                    <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={newKeyType} onChange={e => setNewKeyType(e.target.value)}>
+                      <option value="personal">Personal</option>
+                      <option value="team">Team</option>
+                    </select>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Max Apps</Label>
@@ -250,9 +259,12 @@ export default function Admin() {
                   <div className="space-y-2">
                     {apiKeys.map(k => (
                       <div key={k.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border">
-                        <div>
-                          <p className="font-medium text-foreground">{k.label}</p>
-                          <p className="text-xs text-muted-foreground">Max: {k.max_apps} apps • {k.active ? 'Active' : 'Inactive'}</p>
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <p className="font-medium text-foreground">{k.label}</p>
+                            <p className="text-xs text-muted-foreground">Max: {k.max_apps} apps • {k.active ? 'Active' : 'Inactive'}</p>
+                          </div>
+                          <Badge className={(k as any).account_type === 'team' ? 'bg-primary/20 text-primary' : 'bg-secondary text-muted-foreground'}>{(k as any).account_type || 'personal'}</Badge>
                         </div>
                         <Button variant="ghost" size="sm" className="text-destructive" onClick={() => deleteApiKey(k.id)}>
                           <Trash2 className="w-4 h-4" />
