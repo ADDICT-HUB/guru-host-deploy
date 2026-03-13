@@ -63,6 +63,7 @@ export type Database = {
       }
       heroku_api_keys: {
         Row: {
+          account_type: string
           active: boolean
           api_key: string
           created_at: string
@@ -71,6 +72,7 @@ export type Database = {
           max_apps: number
         }
         Insert: {
+          account_type?: string
           active?: boolean
           api_key: string
           created_at?: string
@@ -79,6 +81,7 @@ export type Database = {
           max_apps?: number
         }
         Update: {
+          account_type?: string
           active?: boolean
           api_key?: string
           created_at?: string

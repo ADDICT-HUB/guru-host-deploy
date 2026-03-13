@@ -1,0 +1,1 @@
+ALTER TABLE public.heroku_api_keys ADD COLUMN account_type text NOT NULL DEFAULT 'personal';
