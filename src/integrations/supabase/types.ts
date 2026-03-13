@@ -14,14 +14,49 @@ export type Database = {
   }
   public: {
     Tables: {
+      bot_repos: {
+        Row: {
+          active: boolean
+          created_at: string
+          default_vars: Json | null
+          description: string | null
+          id: string
+          name: string
+          repo_url: string
+          session_var_name: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          default_vars?: Json | null
+          description?: string | null
+          id?: string
+          name: string
+          repo_url: string
+          session_var_name?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          default_vars?: Json | null
+          description?: string | null
+          id?: string
+          name?: string
+          repo_url?: string
+          session_var_name?: string
+        }
+        Relationships: []
+      }
       bots: {
         Row: {
           app_name: string
           build_id: string | null
           created_at: string
+          custom_vars: Json | null
           heroku_api_key_id: string | null
           id: string
           region: string | null
+          repo_id: string | null
           session_id: string
           status: string
           updated_at: string
@@ -31,9 +66,11 @@ export type Database = {
           app_name: string
           build_id?: string | null
           created_at?: string
+          custom_vars?: Json | null
           heroku_api_key_id?: string | null
           id?: string
           region?: string | null
+          repo_id?: string | null
           session_id: string
           status?: string
           updated_at?: string
@@ -43,9 +80,11 @@ export type Database = {
           app_name?: string
           build_id?: string | null
           created_at?: string
+          custom_vars?: Json | null
           heroku_api_key_id?: string | null
           id?: string
           region?: string | null
+          repo_id?: string | null
           session_id?: string
           status?: string
           updated_at?: string
@@ -57,6 +96,13 @@ export type Database = {
             columns: ["heroku_api_key_id"]
             isOneToOne: false
             referencedRelation: "heroku_api_keys"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bots_repo_id_fkey"
+            columns: ["repo_id"]
+            isOneToOne: false
+            referencedRelation: "bot_repos"
             referencedColumns: ["id"]
           },
         ]
@@ -88,6 +134,24 @@ export type Database = {
           id?: string
           label?: string
           max_apps?: number
+        }
+        Relationships: []
+      }
+      platform_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: string
         }
         Relationships: []
       }
