@@ -1,1 +1,7 @@
 project_id = "bspphoecosypmwvmkzuv"
+
+[functions.heroku-proxy]
+verify_jwt = false
+
+[functions.deploy-bot]
+verify_jwt = false
