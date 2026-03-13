@@ -23,6 +23,7 @@ export default function Admin() {
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [newKeyLabel, setNewKeyLabel] = useState('');
   const [newKeyValue, setNewKeyValue] = useState('');
+  const [newKeyType, setNewKeyType] = useState('personal');
   const [newKeyMaxApps, setNewKeyMaxApps] = useState('100');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
