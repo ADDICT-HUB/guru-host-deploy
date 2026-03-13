@@ -7,8 +7,6 @@ const corsHeaders = {
 };
 
 const HEROKU_API = 'https://api.heroku.com';
-const GURU_MD_REPO = 'https://github.com/Gurulabstech/GURU-MD/tarball/main';
-const DEPLOY_COST = 50;
 
 function getHeaders(apiKey: string) {
   return {
@@ -33,7 +31,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { sessionId, region, userId } = await req.json();
+    const { sessionId, region, userId, repoId, customVars } = await req.json();
 
     if (!sessionId || !userId) {
       return new Response(JSON.stringify({ error: 'Missing sessionId or userId' }), {
@@ -42,13 +40,43 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check user balance
-    const { data: profile } = await supabase.from('profiles').select('balance').eq('id', userId).single();
-    if (!profile || profile.balance < DEPLOY_COST) {
+    // Check if user is banned
+    const { data: profile } = await supabase.from('profiles').select('balance, banned').eq('id', userId).single();
+    if (!profile) {
+      return new Response(JSON.stringify({ error: 'User not found' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (profile.banned) {
+      return new Response(JSON.stringify({ error: 'Your account has been banned. Contact admin.' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Get deploy cost from settings
+    const { data: costSetting } = await supabase.from('platform_settings').select('value').eq('key', 'deploy_cost').single();
+    const deployCost = costSetting ? parseInt(costSetting.value) : 50;
+
+    if (profile.balance < deployCost) {
       return new Response(JSON.stringify({ error: 'Insufficient GRT balance' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    // Get bot repo info
+    let repoUrl = 'https://github.com/Gurulabstech/GURU-MD/tarball/main';
+    let sessionVarName = 'SESSION_ID';
+    let resolvedRepoId = repoId;
+
+    if (repoId) {
+      const { data: repo } = await supabase.from('bot_repos').select('*').eq('id', repoId).single();
+      if (repo) {
+        repoUrl = repo.repo_url;
+        sessionVarName = repo.session_var_name || 'SESSION_ID';
+      }
     }
 
     // Get an active Heroku API key
@@ -91,11 +119,16 @@ Deno.serve(async (req) => {
       }),
     });
 
-    // 3. Set config vars
+    // 3. Set config vars (session + custom vars)
+    const configVars: Record<string, string> = {
+      [sessionVarName]: sessionId,
+      ...(customVars || {}),
+    };
+
     await fetch(`${HEROKU_API}/apps/${appName}/config-vars`, {
       method: 'PATCH',
       headers: getHeaders(herokuKey),
-      body: JSON.stringify({ SESSION_ID: sessionId }),
+      body: JSON.stringify(configVars),
     });
 
     // 4. Create build from GitHub
@@ -104,7 +137,7 @@ Deno.serve(async (req) => {
       headers: getHeaders(herokuKey),
       body: JSON.stringify({
         source_blob: {
-          url: GURU_MD_REPO,
+          url: repoUrl,
           version: Date.now().toString(),
         },
       }),
@@ -113,7 +146,7 @@ Deno.serve(async (req) => {
     const buildData = await buildRes.json();
 
     // 5. Deduct balance
-    await supabase.rpc('add_balance', { user_id_input: userId, amount_input: -DEPLOY_COST });
+    await supabase.rpc('add_balance', { user_id_input: userId, amount_input: -deployCost });
 
     // 6. Save bot record
     await supabase.from('bots').insert({
@@ -124,6 +157,8 @@ Deno.serve(async (req) => {
       heroku_api_key_id: apiKeyRow.id,
       build_id: buildData.id,
       region: region || 'us',
+      repo_id: resolvedRepoId || null,
+      custom_vars: customVars || {},
     });
 
     return new Response(JSON.stringify({ success: true, appName, buildId: buildData.id }), {
