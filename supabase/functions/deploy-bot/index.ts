@@ -101,14 +101,17 @@ Deno.serve(async (req) => {
 
     if (!createRes.ok) {
       const err = await createRes.json();
-      return new Response(JSON.stringify({ error: `Failed to create app: ${err.message || JSON.stringify(err)}` }), {
-        status: 500,
+      return new Response(JSON.stringify({ 
+        error: `Failed to create app: ${err.message || JSON.stringify(err)}`,
+        herokuError: err 
+      }), {
+        status: createRes.status,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     // 2. Set buildpacks
-    await fetch(`${HEROKU_API}/apps/${appName}/buildpack-installations`, {
+    const buildpackRes = await fetch(`${HEROKU_API}/apps/${appName}/buildpack-installations`, {
       method: 'PUT',
       headers: getHeaders(herokuKey),
       body: JSON.stringify({
@@ -119,17 +122,39 @@ Deno.serve(async (req) => {
       }),
     });
 
+    if (!buildpackRes.ok) {
+      const err = await buildpackRes.json();
+      return new Response(JSON.stringify({ 
+        error: `Failed to set buildpacks: ${err.message || JSON.stringify(err)}`,
+        herokuError: err 
+      }), {
+        status: buildpackRes.status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // 3. Set config vars (session + custom vars)
     const configVars: Record<string, string> = {
       [sessionVarName]: sessionId,
       ...(customVars || {}),
     };
 
-    await fetch(`${HEROKU_API}/apps/${appName}/config-vars`, {
+    const configRes = await fetch(`${HEROKU_API}/apps/${appName}/config-vars`, {
       method: 'PATCH',
       headers: getHeaders(herokuKey),
       body: JSON.stringify(configVars),
     });
+
+    if (!configRes.ok) {
+      const err = await configRes.json();
+      return new Response(JSON.stringify({ 
+        error: `Failed to set config vars: ${err.message || JSON.stringify(err)}`,
+        herokuError: err 
+      }), {
+        status: configRes.status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     // 4. Create build from GitHub
     const buildRes = await fetch(`${HEROKU_API}/apps/${appName}/builds`, {
@@ -142,6 +167,17 @@ Deno.serve(async (req) => {
         },
       }),
     });
+
+    if (!buildRes.ok) {
+      const err = await buildRes.json();
+      return new Response(JSON.stringify({ 
+        error: `Failed to create build: ${err.message || JSON.stringify(err)}`,
+        herokuError: err 
+      }), {
+        status: buildRes.status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     const buildData = await buildRes.json();
 
@@ -162,6 +198,7 @@ Deno.serve(async (req) => {
     });
 
     return new Response(JSON.stringify({ success: true, appName, buildId: buildData.id }), {
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
