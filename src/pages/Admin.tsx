@@ -365,12 +365,37 @@ export default function Admin() {
                 </div>
 
                 {keyInfo && (
-                  <div className="mt-3 p-3 rounded-lg bg-primary/10 border border-primary/20 text-sm space-y-1">
-                    <p className="text-foreground font-medium">✅ Valid Key Detected</p>
-                    <p className="text-muted-foreground">Email: {keyInfo.email}</p>
-                    <p className="text-muted-foreground">Type: <Badge className={keyInfo.accountType === 'team' ? 'bg-primary/20 text-primary' : 'bg-secondary text-muted-foreground'}>{keyInfo.accountType}</Badge></p>
-                    {keyInfo.teams?.length > 0 && <p className="text-muted-foreground">Teams: {keyInfo.teams.join(', ')}</p>}
-                    <p className="text-muted-foreground">Current Apps: {keyInfo.appCount}</p>
+                  <div className="mt-3 p-4 rounded-lg bg-primary/10 border border-primary/20 text-sm space-y-2">
+                    <p className="text-foreground font-semibold text-base">✅ Valid Heroku Account</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div><span className="text-muted-foreground">Email:</span> <span className="text-foreground">{keyInfo.email}</span></div>
+                      <div><span className="text-muted-foreground">Name:</span> <span className="text-foreground">{keyInfo.name}</span></div>
+                      <div><span className="text-muted-foreground">Type:</span> <Badge className={keyInfo.accountType === 'team' ? 'bg-primary/20 text-primary' : 'bg-secondary text-muted-foreground'}>{keyInfo.accountType}</Badge></div>
+                      <div><span className="text-muted-foreground">Verified:</span> <span className="text-foreground">{keyInfo.verified ? '✅ Yes' : '❌ No'}</span></div>
+                      <div><span className="text-muted-foreground">Apps:</span> <span className="text-foreground font-bold">{keyInfo.appCount}</span></div>
+                      <div><span className="text-muted-foreground">Region:</span> <span className="text-foreground">{keyInfo.region}</span></div>
+                    </div>
+                    {keyInfo.teams?.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        <p className="text-foreground font-medium">🏢 Teams / Organizations:</p>
+                        {keyInfo.teams.map((t: any) => (
+                          <div key={t.name} className="flex items-center gap-2 bg-secondary/50 rounded px-3 py-1.5">
+                            <span className="font-mono font-bold text-foreground">{t.name}</span>
+                            <Badge variant="outline" className="text-[10px]">{t.role}</Badge>
+                            <Badge variant="outline" className="text-[10px]">{t.type}</Badge>
+                            {t.credit !== 'N/A' && <span className="text-xs text-muted-foreground ml-auto">Billing: {t.credit}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {keyInfo.appNames?.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-muted-foreground text-xs">Recent apps: <span className="font-mono text-foreground">{keyInfo.appNames.join(', ')}</span></p>
+                      </div>
+                    )}
+                    {keyInfo.createdAt && (
+                      <p className="text-xs text-muted-foreground">Account created: {new Date(keyInfo.createdAt).toLocaleDateString()}</p>
+                    )}
                   </div>
                 )}
 
