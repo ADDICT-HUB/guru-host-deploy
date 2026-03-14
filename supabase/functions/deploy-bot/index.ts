@@ -3,10 +3,12 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 const HEROKU_API = 'https://api.heroku.com';
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
 function getHeaders(apiKey: string) {
   return {
@@ -34,25 +36,16 @@ Deno.serve(async (req) => {
     const { sessionId, region, userId, repoId, customVars } = await req.json();
 
     if (!sessionId || !userId) {
-      return new Response(JSON.stringify({ error: 'Missing sessionId or userId' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return json({ error: 'Missing sessionId or userId' });
     }
 
     // Check if user is banned
     const { data: profile } = await supabase.from('profiles').select('balance, banned').eq('id', userId).single();
     if (!profile) {
-      return new Response(JSON.stringify({ error: 'User not found' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return json({ error: 'User not found' });
     }
     if (profile.banned) {
-      return new Response(JSON.stringify({ error: 'Your account has been banned. Contact admin.' }), {
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return json({ error: 'Your account has been banned. Contact admin.' });
     }
 
     // Get deploy cost from settings
@@ -60,10 +53,7 @@ Deno.serve(async (req) => {
     const deployCost = costSetting ? parseInt(costSetting.value) : 50;
 
     if (profile.balance < deployCost) {
-      return new Response(JSON.stringify({ error: 'Insufficient GRT balance' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return json({ error: 'Insufficient GRT balance' });
     }
 
     // Get bot repo info
@@ -82,10 +72,7 @@ Deno.serve(async (req) => {
     // Get an active Heroku API key
     const { data: apiKeys } = await supabase.from('heroku_api_keys').select('*').eq('active', true).limit(1);
     if (!apiKeys || apiKeys.length === 0) {
-      return new Response(JSON.stringify({ error: 'No Heroku API keys configured. Contact admin.' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return json({ error: 'No Heroku API keys configured. Contact admin.' });
     }
 
     const apiKeyRow = apiKeys[0];
@@ -101,13 +88,7 @@ Deno.serve(async (req) => {
 
     if (!createRes.ok) {
       const err = await createRes.json();
-      return new Response(JSON.stringify({ 
-        error: `Failed to create app: ${err.message || JSON.stringify(err)}`,
-        herokuError: err 
-      }), {
-        status: createRes.status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return json({ error: `Failed to create app: ${err.message || JSON.stringify(err)}` });
     }
 
     // 2. Set buildpacks
@@ -124,13 +105,7 @@ Deno.serve(async (req) => {
 
     if (!buildpackRes.ok) {
       const err = await buildpackRes.json();
-      return new Response(JSON.stringify({ 
-        error: `Failed to set buildpacks: ${err.message || JSON.stringify(err)}`,
-        herokuError: err 
-      }), {
-        status: buildpackRes.status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return json({ error: `Failed to set buildpacks: ${err.message || JSON.stringify(err)}` });
     }
 
     // 3. Set config vars (session + custom vars)
@@ -147,13 +122,7 @@ Deno.serve(async (req) => {
 
     if (!configRes.ok) {
       const err = await configRes.json();
-      return new Response(JSON.stringify({ 
-        error: `Failed to set config vars: ${err.message || JSON.stringify(err)}`,
-        herokuError: err 
-      }), {
-        status: configRes.status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return json({ error: `Failed to set config vars: ${err.message || JSON.stringify(err)}` });
     }
 
     // 4. Create build from GitHub
@@ -170,13 +139,7 @@ Deno.serve(async (req) => {
 
     if (!buildRes.ok) {
       const err = await buildRes.json();
-      return new Response(JSON.stringify({ 
-        error: `Failed to create build: ${err.message || JSON.stringify(err)}`,
-        herokuError: err 
-      }), {
-        status: buildRes.status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return json({ error: `Failed to create build: ${err.message || JSON.stringify(err)}` });
     }
 
     const buildData = await buildRes.json();
@@ -197,14 +160,8 @@ Deno.serve(async (req) => {
       custom_vars: customVars || {},
     });
 
-    return new Response(JSON.stringify({ success: true, appName, buildId: buildData.id }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return json({ success: true, appName, buildId: buildData.id });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    return json({ error: error.message }, 500);
   }
 });

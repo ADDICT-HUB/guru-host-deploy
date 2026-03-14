@@ -70,23 +70,38 @@ export default function DeployBot() {
     customVars.forEach(v => { if (v.key.trim()) extraVars[v.key.trim()] = v.value; });
 
     setLoading(true);
-    const { data, error } = await supabase.functions.invoke('deploy-bot', {
-      body: {
-        sessionId: sessionId.trim(),
-        region,
-        userId: user?.id,
-        repoId: selectedRepo,
-        customVars: extraVars,
-      },
-    });
-    setLoading(false);
+    try {
+      const { data, error } = await supabase.functions.invoke('deploy-bot', {
+        body: {
+          sessionId: sessionId.trim(),
+          region,
+          userId: user?.id,
+          repoId: selectedRepo,
+          customVars: extraVars,
+        },
+      });
 
-    if (error || data?.error) {
-      toast({ title: 'Deployment failed', description: data?.error || error?.message, variant: 'destructive' });
-    } else {
-      toast({ title: '🚀 Bot Deployed!', description: `${data?.appName} is being built...` });
-      navigate('/dashboard');
+      if (error) {
+        // Extract message from FunctionsHttpError
+        let message = error.message;
+        try {
+          const ctx = error.context;
+          if (ctx && typeof ctx.json === 'function') {
+            const body = await ctx.json();
+            message = body?.error || message;
+          }
+        } catch {}
+        toast({ title: 'Deployment failed', description: message, variant: 'destructive' });
+      } else if (data?.error) {
+        toast({ title: 'Deployment failed', description: data.error, variant: 'destructive' });
+      } else {
+        toast({ title: '🚀 Bot Deployed!', description: `${data?.appName} is being built...` });
+        navigate('/dashboard');
+      }
+    } catch (err: any) {
+      toast({ title: 'Deployment failed', description: err?.message || 'Unknown error', variant: 'destructive' });
     }
+    setLoading(false);
   };
 
   return (
