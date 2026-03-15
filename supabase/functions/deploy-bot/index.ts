@@ -40,15 +40,11 @@ Deno.serve(async (req) => {
     }
 
     // Check if user is banned
-    const { data: profile } = await supabase.from('profiles').select('balance, banned').eq('id', userId).single();
-    if (!profile) {
-      return json({ error: 'User not found' });
-    }
-    if (profile.banned) {
-      return json({ error: 'Your account has been banned. Contact admin.' });
-    }
+    const { data: profile } = await supabase.from('profiles').select('balance, banned, referred_by').eq('id', userId).single();
+    if (!profile) return json({ error: 'User not found' });
+    if (profile.banned) return json({ error: 'Your account has been banned. Contact admin.' });
 
-    // Get deploy cost from settings
+    // Get deploy cost
     const { data: costSetting } = await supabase.from('platform_settings').select('value').eq('key', 'deploy_cost').single();
     const deployCost = costSetting ? parseInt(costSetting.value) : 50;
 
@@ -79,11 +75,32 @@ Deno.serve(async (req) => {
     const herokuKey = apiKeyRow.api_key;
     const appName = generateAppName();
 
+    // Detect team for this API key
+    let teamName: string | null = null;
+    try {
+      const teamsRes = await fetch(`${HEROKU_API}/teams`, { headers: getHeaders(herokuKey) });
+      if (teamsRes.ok) {
+        const teams = await teamsRes.json();
+        if (Array.isArray(teams) && teams.length > 0) {
+          // Prefer silvateam14 if available, otherwise use first team
+          const silva = teams.find((t: any) => t.name.toLowerCase() === 'silvateam14');
+          teamName = silva ? silva.name : teams[0].name;
+        }
+      }
+    } catch { /* continue without team */ }
+
+    // Build create payload
+    const createBody: any = { name: appName, region: region || 'us', stack: 'heroku-24' };
+    if (teamName) {
+      createBody.team = teamName;
+      console.log(`🚀 Creating app in team: ${teamName}`);
+    }
+
     // 1. Create Heroku app
     const createRes = await fetch(`${HEROKU_API}/apps`, {
       method: 'POST',
       headers: getHeaders(herokuKey),
-      body: JSON.stringify({ name: appName, region: region || 'us', stack: 'heroku-24' }),
+      body: JSON.stringify(createBody),
     });
 
     if (!createRes.ok) {
@@ -92,7 +109,7 @@ Deno.serve(async (req) => {
     }
 
     // 2. Set buildpacks
-    const buildpackRes = await fetch(`${HEROKU_API}/apps/${appName}/buildpack-installations`, {
+    await fetch(`${HEROKU_API}/apps/${appName}/buildpack-installations`, {
       method: 'PUT',
       headers: getHeaders(herokuKey),
       body: JSON.stringify({
@@ -103,37 +120,24 @@ Deno.serve(async (req) => {
       }),
     });
 
-    if (!buildpackRes.ok) {
-      const err = await buildpackRes.json();
-      return json({ error: `Failed to set buildpacks: ${err.message || JSON.stringify(err)}` });
-    }
-
-    // 3. Set config vars (session + custom vars)
+    // 3. Set config vars
     const configVars: Record<string, string> = {
       [sessionVarName]: sessionId,
       ...(customVars || {}),
     };
 
-    const configRes = await fetch(`${HEROKU_API}/apps/${appName}/config-vars`, {
+    await fetch(`${HEROKU_API}/apps/${appName}/config-vars`, {
       method: 'PATCH',
       headers: getHeaders(herokuKey),
       body: JSON.stringify(configVars),
     });
 
-    if (!configRes.ok) {
-      const err = await configRes.json();
-      return json({ error: `Failed to set config vars: ${err.message || JSON.stringify(err)}` });
-    }
-
-    // 4. Create build from GitHub
+    // 4. Create build
     const buildRes = await fetch(`${HEROKU_API}/apps/${appName}/builds`, {
       method: 'POST',
       headers: getHeaders(herokuKey),
       body: JSON.stringify({
-        source_blob: {
-          url: repoUrl,
-          version: Date.now().toString(),
-        },
+        source_blob: { url: repoUrl, version: Date.now().toString() },
       }),
     });
 
@@ -160,7 +164,38 @@ Deno.serve(async (req) => {
       custom_vars: customVars || {},
     });
 
-    return json({ success: true, appName, buildId: buildData.id });
+    // 7. Process referral reward (first deploy only)
+    try {
+      const { count: botCount } = await supabase.from('bots').select('id', { count: 'exact', head: true }).eq('user_id', userId);
+      if (botCount === 1 && profile.referred_by) {
+        // First bot deployment — reward the referrer
+        const referrerCode = await supabase.from('profiles').select('referral_code').eq('id', profile.referred_by).single();
+        if (referrerCode.data?.referral_code) {
+          // Get referral reward amount from settings or default 20
+          const { data: rewardSetting } = await supabase.from('platform_settings').select('value').eq('key', 'referral_reward').single();
+          const rewardAmount = rewardSetting ? parseInt(rewardSetting.value) : 20;
+
+          // Credit referrer
+          await supabase.rpc('add_balance', { user_id_input: profile.referred_by, amount_input: rewardAmount });
+
+          // Update referral record
+          await supabase.from('referrals')
+            .update({ status: 'completed', referred_id: userId, completed_at: new Date().toISOString() })
+            .eq('referrer_id', profile.referred_by)
+            .eq('status', 'pending')
+            .limit(1);
+        }
+      }
+    } catch (e) {
+      console.error('Referral processing error:', e);
+    }
+
+    return json({
+      success: true,
+      appName,
+      buildId: buildData.id,
+      team: teamName || 'personal',
+    });
   } catch (error) {
     return json({ error: error.message }, 500);
   }

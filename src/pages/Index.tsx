@@ -1,6 +1,6 @@
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from '@/contexts/AuthContext';
-import { Bot, Rocket, Shield, Zap, Users, ArrowRight, Star, CheckCircle, Sparkles } from 'lucide-react';
+import { Bot, Rocket, Shield, Zap, Users, ArrowRight, Star, CheckCircle, Sparkles, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { useEffect, useState } from 'react';
@@ -50,12 +50,21 @@ const steps = [
 const testimonials = [
   { name: 'Silva', role: 'Bot Developer', text: 'GURU HOST made deploying my WhatsApp bot effortless. Best platform out there!', rating: 5 },
   { name: 'Alex K.', role: 'Community Admin', text: 'Managing multiple bots from one dashboard is a game-changer. Highly recommend!', rating: 5 },
-  { name: 'Sarah M.', role: 'Tech Enthusiast', text: 'The fastest deployment I\'ve ever experienced. From signup to live bot in under 2 minutes.', rating: 4 },
+  { name: 'Sarah M.', role: 'Tech Enthusiast', text: "The fastest deployment I've ever experienced. From signup to live bot in under 2 minutes.", rating: 4 },
 ];
 
 export default function Index() {
   const { user } = useAuth();
   const [stats, setStats] = useState({ users: 150, bots: 420, deploys: 1200 });
+  const [searchParams] = useSearchParams();
+
+  // Store referral code from URL
+  useEffect(() => {
+    const ref = searchParams.get('ref');
+    if (ref) {
+      localStorage.setItem('guru_referral', ref);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     supabase.from('profiles').select('id', { count: 'exact', head: true }).then(({ count }) => {
@@ -115,7 +124,6 @@ export default function Index() {
             </div>
           </motion.div>
 
-          {/* Stats */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
@@ -135,14 +143,8 @@ export default function Index() {
           <h2 className="text-3xl font-bold text-center mb-12">Why GURU HOST?</h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {features.map((f, i) => (
-              <motion.div
-                key={f.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="bg-card border border-border rounded-xl p-6 hover:border-primary/50 transition-colors"
-              >
+              <motion.div key={f.title} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+                className="bg-card border border-border rounded-xl p-6 hover:border-primary/50 transition-colors">
                 <f.icon className="w-10 h-10 text-primary mb-4" />
                 <h3 className="font-semibold text-lg mb-2">{f.title}</h3>
                 <p className="text-sm text-muted-foreground">{f.desc}</p>
@@ -158,14 +160,7 @@ export default function Index() {
           <h2 className="text-3xl font-bold text-center mb-12">How It Works</h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {steps.map((s, i) => (
-              <motion.div
-                key={s.step}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="text-center"
-              >
+              <motion.div key={s.step} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }} className="text-center">
                 <div className="text-4xl font-bold text-primary/20 mb-2">{s.step}</div>
                 <h3 className="font-semibold mb-1">{s.title}</h3>
                 <p className="text-sm text-muted-foreground">{s.desc}</p>
@@ -181,14 +176,8 @@ export default function Index() {
           <h2 className="text-3xl font-bold text-center mb-12">What Users Say</h2>
           <div className="grid md:grid-cols-3 gap-6">
             {testimonials.map((t, i) => (
-              <motion.div
-                key={t.name}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="bg-card border border-border rounded-xl p-6"
-              >
+              <motion.div key={t.name} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+                className="bg-card border border-border rounded-xl p-6">
                 <div className="flex gap-0.5 mb-3">
                   {Array.from({ length: t.rating }).map((_, j) => (
                     <Star key={j} className="w-4 h-4 fill-primary text-primary" />
@@ -211,7 +200,7 @@ export default function Index() {
             <div className="text-5xl font-bold text-primary mb-2">50 GRT</div>
             <div className="text-muted-foreground mb-6">per deployment</div>
             <ul className="text-left space-y-3 mb-8">
-              {['24/7 Bot Uptime', 'Auto Restart on Crash', 'Custom Config Variables', 'Multiple Bot Repos', 'Real-time Status Updates'].map(f => (
+              {['24/7 Bot Uptime', 'Auto Restart on Crash', 'Custom Config Variables', 'Multiple Bot Repos', 'Real-time Status Updates', 'Earn GRT via Referrals 🎁'].map(f => (
                 <li key={f} className="flex items-center gap-2 text-sm">
                   <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" /> {f}
                 </li>

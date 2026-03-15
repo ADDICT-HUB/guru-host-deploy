@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
-import { Rocket, Loader2, AlertCircle, Plus, Trash2 } from 'lucide-react';
+import { Rocket, Loader2, AlertCircle, Plus, Trash2, Wallet, Copy, Share2, Gift, Zap, HelpCircle } from 'lucide-react';
 
 export default function DeployBot() {
   const { user } = useAuth();
@@ -23,22 +23,41 @@ export default function DeployBot() {
   const [repos, setRepos] = useState<any[]>([]);
   const [selectedRepo, setSelectedRepo] = useState('');
   const [customVars, setCustomVars] = useState<{ key: string; value: string }[]>([]);
+  const [referralCode, setReferralCode] = useState('');
+  const [referralCount, setReferralCount] = useState(0);
 
   useEffect(() => {
     if (user) {
       Promise.all([
-        supabase.from('profiles').select('balance').eq('id', user.id).single(),
+        supabase.from('profiles').select('balance, referral_code').eq('id', user.id).single(),
         supabase.from('bot_repos').select('*').eq('active', true),
         supabase.from('platform_settings').select('*').eq('key', 'deploy_cost').single(),
-      ]).then(([profileRes, reposRes, costRes]) => {
+        supabase.from('referrals').select('id', { count: 'exact', head: true }).eq('referrer_id', user.id).eq('status', 'completed'),
+      ]).then(([profileRes, reposRes, costRes, refRes]) => {
         setBalance(profileRes.data?.balance || 0);
+        setReferralCode(profileRes.data?.referral_code || '');
         setRepos(reposRes.data || []);
         if (reposRes.data && reposRes.data.length > 0) setSelectedRepo(reposRes.data[0].id);
         if (costRes.data) setDeployCost(parseInt(costRes.data.value) || 50);
+        setReferralCount(refRes.count || 0);
         setFetching(false);
       });
     }
   }, [user]);
+
+  const generateReferralCode = async () => {
+    if (!user) return;
+    const code = `GURU-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    await supabase.from('profiles').update({ referral_code: code }).eq('id', user.id);
+    setReferralCode(code);
+    toast({ title: 'Referral code generated!', description: code });
+  };
+
+  const copyReferralLink = () => {
+    const link = `${window.location.origin}?ref=${referralCode}`;
+    navigator.clipboard.writeText(link);
+    toast({ title: 'Copied!', description: 'Referral link copied to clipboard' });
+  };
 
   const addVar = () => setCustomVars([...customVars, { key: '', value: '' }]);
   const removeVar = (i: number) => setCustomVars(customVars.filter((_, idx) => idx !== i));
@@ -60,12 +79,7 @@ export default function DeployBot() {
       toast({ title: 'Insufficient GRT', description: `You need ${deployCost} GRT. Current: ${balance} GRT`, variant: 'destructive' });
       return;
     }
-    if (!selectedRepo) {
-      toast({ title: 'Select a bot to deploy', variant: 'destructive' });
-      return;
-    }
 
-    // Build extra vars object
     const extraVars: Record<string, string> = {};
     customVars.forEach(v => { if (v.key.trim()) extraVars[v.key.trim()] = v.value; });
 
@@ -82,7 +96,6 @@ export default function DeployBot() {
       });
 
       if (error) {
-        // Extract message from FunctionsHttpError
         let message = error.message;
         try {
           const ctx = error.context;
@@ -106,16 +119,51 @@ export default function DeployBot() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-xl mx-auto space-y-6">
+      <div className="max-w-2xl mx-auto space-y-6">
         <div>
           <h1 className="font-display text-3xl font-bold text-foreground">Deploy WhatsApp Bot</h1>
-          <p className="text-muted-foreground">Choose a bot, enter your session ID, and deploy</p>
+          <p className="text-muted-foreground">Enter your session ID and deploy in one click</p>
         </div>
 
+        {/* Quick Action Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Link to="/dashboard/fund">
+            <Card className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer">
+              <CardContent className="p-3 text-center">
+                <Wallet className="w-5 h-5 text-primary mx-auto mb-1" />
+                <p className="text-xs font-medium">Fund Account</p>
+              </CardContent>
+            </Card>
+          </Link>
+          <Link to="/dashboard">
+            <Card className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer">
+              <CardContent className="p-3 text-center">
+                <Zap className="w-5 h-5 text-primary mx-auto mb-1" />
+                <p className="text-xs font-medium">My Bots</p>
+              </CardContent>
+            </Card>
+          </Link>
+          <Card className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer" onClick={referralCode ? copyReferralLink : generateReferralCode}>
+            <CardContent className="p-3 text-center">
+              <Gift className="w-5 h-5 text-primary mx-auto mb-1" />
+              <p className="text-xs font-medium">Refer & Earn</p>
+            </CardContent>
+          </Card>
+          <a href="https://github.com/Gurulabstech/GURU-MD" target="_blank" rel="noopener noreferrer">
+            <Card className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer">
+              <CardContent className="p-3 text-center">
+                <HelpCircle className="w-5 h-5 text-primary mx-auto mb-1" />
+                <p className="text-xs font-medium">Get Session</p>
+              </CardContent>
+            </Card>
+          </a>
+        </div>
+
+        {/* Deploy Form */}
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="font-display flex items-center gap-2"><Rocket className="w-5 h-5 text-primary" /> New Deployment</CardTitle>
-            <CardDescription>Cost: {deployCost} GRT per deployment</CardDescription>
+            <CardDescription>Cost: {deployCost} GRT • Bot: {selectedRepoData?.name || 'GURU-MD'}</CardDescription>
           </CardHeader>
           <CardContent>
             {fetching ? (
@@ -130,30 +178,33 @@ export default function DeployBot() {
                 {balance < deployCost && (
                   <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 flex items-center gap-2 text-sm text-destructive">
                     <AlertCircle className="w-4 h-4 shrink-0" />
-                    Insufficient balance. Fund your account with at least {deployCost} GRT.
+                    Insufficient balance.
+                    <Link to="/dashboard/fund" className="underline font-medium">Fund now</Link>
                   </div>
                 )}
 
-                {/* Bot Selection */}
-                <div className="space-y-2">
-                  <Label>Select Bot</Label>
-                  <Select value={selectedRepo} onValueChange={setSelectedRepo}>
-                    <SelectTrigger><SelectValue placeholder="Choose a bot" /></SelectTrigger>
-                    <SelectContent>
-                      {repos.map(r => (
-                        <SelectItem key={r.id} value={r.id}>
-                          {r.name} {r.description ? `— ${r.description}` : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* Hidden bot select — auto-selects first repo */}
+                {repos.length > 1 && (
+                  <div className="space-y-2">
+                    <Label>Bot Repository</Label>
+                    <Select value={selectedRepo} onValueChange={setSelectedRepo}>
+                      <SelectTrigger><SelectValue placeholder="Choose a bot" /></SelectTrigger>
+                      <SelectContent>
+                        {repos.map(r => (
+                          <SelectItem key={r.id} value={r.id}>
+                            {r.name} {r.description ? `— ${r.description}` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="session">Session ID</Label>
                   <Input
                     id="session"
-                    placeholder={`Paste your ${selectedRepoData?.name || 'bot'} session ID`}
+                    placeholder={`Paste your ${selectedRepoData?.name || 'GURU-MD'} session ID`}
                     value={sessionId}
                     onChange={e => setSessionId(e.target.value)}
                     required
@@ -196,14 +247,37 @@ export default function DeployBot() {
                       ))}
                     </div>
                   )}
-                  <p className="text-xs text-muted-foreground">Add extra config vars to your Heroku app (optional)</p>
                 </div>
 
-                <Button type="submit" className="w-full glow-green gap-2" disabled={loading || balance < deployCost}>
+                <Button type="submit" className="w-full gap-2" disabled={loading || balance < deployCost}>
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rocket className="w-4 h-4" />}
                   Deploy Bot ({deployCost} GRT)
                 </Button>
               </form>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Referral Card */}
+        <Card className="bg-card border-primary/20">
+          <CardHeader>
+            <CardTitle className="font-display flex items-center gap-2 text-base"><Gift className="w-5 h-5 text-primary" /> Refer & Earn GRT</CardTitle>
+            <CardDescription>Earn 20 GRT for every friend who deploys a bot using your link!</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {referralCode ? (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Input readOnly value={`${window.location.origin}?ref=${referralCode}`} className="font-mono text-xs" />
+                  <Button variant="outline" size="sm" onClick={copyReferralLink}><Copy className="w-4 h-4" /></Button>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Successful referrals</span>
+                  <span className="font-bold text-primary">{referralCount} • {referralCount * 20} GRT earned</span>
+                </div>
+              </div>
+            ) : (
+              <Button onClick={generateReferralCode} className="gap-2"><Share2 className="w-4 h-4" /> Generate Referral Link</Button>
             )}
           </CardContent>
         </Card>
