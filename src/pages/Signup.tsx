@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Bot, Loader2 } from 'lucide-react';
+import { Bot, Loader2, Gift } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { toast } from '@/hooks/use-toast';
 
 export default function Signup() {
@@ -13,8 +14,14 @@ export default function Signup() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [referralCode, setReferralCode] = useState('');
   const { signUp } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const ref = localStorage.getItem('guru_referral');
+    if (ref) setReferralCode(ref);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,11 +30,35 @@ export default function Signup() {
       return;
     }
     setLoading(true);
-    const { error } = await signUp(email, password, displayName);
+    const { data, error } = await signUp(email, password, displayName);
     setLoading(false);
     if (error) {
       toast({ title: 'Signup failed', description: error.message, variant: 'destructive' });
     } else {
+      // If there's a referral code, link the user
+      if (referralCode && data?.user?.id) {
+        try {
+          // Find the referrer by their referral code
+          const { data: referrer } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('referral_code', referralCode)
+            .single();
+
+          if (referrer) {
+            // We'll set referred_by after email confirmation via a trigger,
+            // but also create the referral record now
+            await supabase.from('referrals').insert({
+              referrer_id: referrer.id,
+              referred_id: data.user.id,
+              referral_code: referralCode,
+              status: 'pending',
+              reward_amount: 20,
+            });
+          }
+        } catch { /* ignore referral errors */ }
+        localStorage.removeItem('guru_referral');
+      }
       toast({ title: 'Account created!', description: 'Check your email for confirmation link.' });
       navigate('/login');
     }
@@ -61,8 +92,14 @@ export default function Signup() {
                 <Label htmlFor="password">Password</Label>
                 <Input id="password" type="password" placeholder="Min 6 characters" value={password} onChange={e => setPassword(e.target.value)} required />
               </div>
-              <Button type="submit" className="w-full glow-green" disabled={loading}>
-                {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {referralCode && (
+                <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 flex items-center gap-2 text-sm text-primary">
+                  <Gift className="w-4 h-4 shrink-0" />
+                  Referred by: <span className="font-mono font-bold">{referralCode}</span>
+                </div>
+              )}
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                 Create Account
               </Button>
               <p className="text-center text-sm text-muted-foreground">
