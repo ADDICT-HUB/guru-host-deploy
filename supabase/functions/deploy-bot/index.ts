@@ -89,15 +89,17 @@ Deno.serve(async (req) => {
       }
     } catch { /* continue without team */ }
 
-    // Build create payload
+    // Build create payload & endpoint
     const createBody: any = { name: appName, region: region || 'us', stack: 'heroku-24' };
+    let createUrl = `${HEROKU_API}/apps`;
     if (teamName) {
+      createUrl = `${HEROKU_API}/teams/apps`;
       createBody.team = teamName;
       console.log(`🚀 Creating app in team: ${teamName}`);
     }
 
     // 1. Create Heroku app
-    const createRes = await fetch(`${HEROKU_API}/apps`, {
+    const createRes = await fetch(createUrl, {
       method: 'POST',
       headers: getHeaders(herokuKey),
       body: JSON.stringify(createBody),
