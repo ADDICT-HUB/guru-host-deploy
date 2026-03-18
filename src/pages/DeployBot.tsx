@@ -163,7 +163,60 @@ export default function DeployBot() {
           </a>
         </div>
 
-        {/* Deploy Form */}
+        {/* New User Guide */}
+        <Collapsible open={guideOpen} onOpenChange={setGuideOpen}>
+          <Card className="bg-card border-primary/20">
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-secondary/30 transition-colors rounded-t-lg">
+                <CardTitle className="font-display flex items-center justify-between text-base">
+                  <span className="flex items-center gap-2">
+                    <BookOpen className="w-5 h-5 text-primary" />
+                    How to Deploy Your Bot (Step-by-Step)
+                  </span>
+                  {guideOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                </CardTitle>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-0 space-y-4">
+                <div className="space-y-3 text-sm">
+                  <div className="flex gap-3">
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">1</span>
+                    <div>
+                      <p className="font-medium text-foreground">Get your Session ID</p>
+                      <p className="text-muted-foreground">Visit <a href="https://github.com/Gurulabstech/GURU-MD" target="_blank" rel="noopener noreferrer" className="text-primary underline">GURU-MD GitHub</a> or your bot's repo and follow their session ID instructions. This pairs the bot with your WhatsApp number.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">2</span>
+                    <div>
+                      <p className="font-medium text-foreground">Choose a Bot Repository</p>
+                      <p className="text-muted-foreground">Paste any public GitHub bot repo URL below. Default is <span className="font-mono text-xs">GURU-MD</span>. You can deploy any WhatsApp MD bot — just like Heroku.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">3</span>
+                    <div>
+                      <p className="font-medium text-foreground">Set Session Var Name</p>
+                      <p className="text-muted-foreground">Most bots use <span className="font-mono text-xs">SESSION_ID</span>. Some use <span className="font-mono text-xs">SESSION</span> or others — check your bot's README.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">4</span>
+                    <div>
+                      <p className="font-medium text-foreground">Fund & Deploy</p>
+                      <p className="text-muted-foreground">Make sure you have enough GRT balance, then hit <strong>Deploy Bot</strong>. Your bot will be live in ~2 minutes!</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-primary/5 border border-primary/10 text-xs text-muted-foreground">
+                  <strong className="text-foreground">💡 Tips:</strong> Add custom env vars if your bot needs extra config (API keys, prefixes, etc). Choose the region closest to you for best performance.
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="font-display flex items-center gap-2"><Rocket className="w-5 h-5 text-primary" /> New Deployment</CardTitle>
