@@ -7,6 +7,8 @@ const corsHeaders = {
 };
 
 const HEROKU_API = 'https://api.heroku.com';
+const DEFAULT_REPO = 'https://github.com/Gurulabstech/GURU-MD';
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
@@ -23,6 +25,21 @@ function generateAppName(): string {
   return `guru-md-${suffix}`.toLowerCase();
 }
 
+/** Convert a GitHub URL to tarball format for Heroku source builds */
+function toTarballUrl(url: string): string {
+  // Already a tarball URL
+  if (/\/tarball\//.test(url)) return url;
+  // Strip trailing slash and .git
+  let clean = url.replace(/\/+$/, '').replace(/\.git$/, '');
+  // Standard GitHub repo URL → tarball
+  const match = clean.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)$/);
+  if (match) {
+    return `https://github.com/${match[1]}/${match[2]}/tarball/main`;
+  }
+  // If it's some other format, return as-is and let Heroku handle it
+  return url;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -33,7 +50,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { sessionId, region, userId, repoId, customVars } = await req.json();
+    const { sessionId, region, userId, repoId, repoUrl, sessionVarName, customVars } = await req.json();
 
     if (!sessionId || !userId) {
       return json({ error: 'Missing sessionId or userId' });
@@ -52,17 +69,24 @@ Deno.serve(async (req) => {
       return json({ error: 'Insufficient GRT balance' });
     }
 
-    // Get bot repo info
-    let repoUrl = 'https://github.com/Gurulabstech/GURU-MD/tarball/main';
-    let sessionVarName = 'SESSION_ID';
-    let resolvedRepoId = repoId;
+    // Resolve repo URL and session var name
+    let finalRepoUrl: string;
+    let finalSessionVarName = sessionVarName || 'SESSION_ID';
 
-    if (repoId) {
+    if (repoUrl) {
+      // User provided a custom repo URL — convert to tarball
+      finalRepoUrl = toTarballUrl(repoUrl);
+    } else if (repoId) {
+      // Legacy: lookup from bot_repos table
       const { data: repo } = await supabase.from('bot_repos').select('*').eq('id', repoId).single();
       if (repo) {
-        repoUrl = repo.repo_url;
-        sessionVarName = repo.session_var_name || 'SESSION_ID';
+        finalRepoUrl = repo.repo_url;
+        finalSessionVarName = repo.session_var_name || 'SESSION_ID';
+      } else {
+        finalRepoUrl = toTarballUrl(DEFAULT_REPO);
       }
+    } else {
+      finalRepoUrl = toTarballUrl(DEFAULT_REPO);
     }
 
     // Get an active Heroku API key
@@ -82,7 +106,6 @@ Deno.serve(async (req) => {
       if (teamsRes.ok) {
         const teams = await teamsRes.json();
         if (Array.isArray(teams) && teams.length > 0) {
-          // Prefer silvateam14 if available, otherwise use first team
           const silva = teams.find((t: any) => t.name.toLowerCase() === 'silvateam14');
           teamName = silva ? silva.name : teams[0].name;
         }
@@ -124,7 +147,7 @@ Deno.serve(async (req) => {
 
     // 3. Set config vars
     const configVars: Record<string, string> = {
-      [sessionVarName]: sessionId,
+      [finalSessionVarName]: sessionId,
       ...(customVars || {}),
     };
 
@@ -134,12 +157,13 @@ Deno.serve(async (req) => {
       body: JSON.stringify(configVars),
     });
 
-    // 4. Create build
+    // 4. Create build from tarball
+    console.log(`📦 Building from: ${finalRepoUrl}`);
     const buildRes = await fetch(`${HEROKU_API}/apps/${appName}/builds`, {
       method: 'POST',
       headers: getHeaders(herokuKey),
       body: JSON.stringify({
-        source_blob: { url: repoUrl, version: Date.now().toString() },
+        source_blob: { url: finalRepoUrl, version: Date.now().toString() },
       }),
     });
 
@@ -162,7 +186,7 @@ Deno.serve(async (req) => {
       heroku_api_key_id: apiKeyRow.id,
       build_id: buildData.id,
       region: region || 'us',
-      repo_id: resolvedRepoId || null,
+      repo_url: repoUrl || DEFAULT_REPO,
       custom_vars: customVars || {},
     });
 
@@ -170,23 +194,14 @@ Deno.serve(async (req) => {
     try {
       const { count: botCount } = await supabase.from('bots').select('id', { count: 'exact', head: true }).eq('user_id', userId);
       if (botCount === 1 && profile.referred_by) {
-        // First bot deployment — reward the referrer
-        const referrerCode = await supabase.from('profiles').select('referral_code').eq('id', profile.referred_by).single();
-        if (referrerCode.data?.referral_code) {
-          // Get referral reward amount from settings or default 20
-          const { data: rewardSetting } = await supabase.from('platform_settings').select('value').eq('key', 'referral_reward').single();
-          const rewardAmount = rewardSetting ? parseInt(rewardSetting.value) : 20;
-
-          // Credit referrer
-          await supabase.rpc('add_balance', { user_id_input: profile.referred_by, amount_input: rewardAmount });
-
-          // Update referral record
-          await supabase.from('referrals')
-            .update({ status: 'completed', referred_id: userId, completed_at: new Date().toISOString() })
-            .eq('referrer_id', profile.referred_by)
-            .eq('status', 'pending')
-            .limit(1);
-        }
+        const { data: rewardSetting } = await supabase.from('platform_settings').select('value').eq('key', 'referral_reward').single();
+        const rewardAmount = rewardSetting ? parseInt(rewardSetting.value) : 20;
+        await supabase.rpc('add_balance', { user_id_input: profile.referred_by, amount_input: rewardAmount });
+        await supabase.from('referrals')
+          .update({ status: 'completed', referred_id: userId, completed_at: new Date().toISOString() })
+          .eq('referrer_id', profile.referred_by)
+          .eq('status', 'pending')
+          .limit(1);
       }
     } catch (e) {
       console.error('Referral processing error:', e);

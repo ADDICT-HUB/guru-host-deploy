@@ -57,6 +57,7 @@ export type Database = {
           id: string
           region: string | null
           repo_id: string | null
+          repo_url: string | null
           session_id: string
           status: string
           updated_at: string
@@ -71,6 +72,7 @@ export type Database = {
           id?: string
           region?: string | null
           repo_id?: string | null
+          repo_url?: string | null
           session_id: string
           status?: string
           updated_at?: string
@@ -85,6 +87,7 @@ export type Database = {
           id?: string
           region?: string | null
           repo_id?: string | null
+          repo_url?: string | null
           session_id?: string
           status?: string
           updated_at?: string

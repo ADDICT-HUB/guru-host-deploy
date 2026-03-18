@@ -1,0 +1,1 @@
+ALTER TABLE public.bots ADD COLUMN repo_url text;
