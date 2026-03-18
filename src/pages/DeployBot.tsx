@@ -28,6 +28,7 @@ export default function DeployBot() {
   const [customVars, setCustomVars] = useState<{ key: string; value: string }[]>([]);
   const [referralCode, setReferralCode] = useState('');
   const [referralCount, setReferralCount] = useState(0);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
