@@ -11,17 +11,19 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
 import { Rocket, Loader2, AlertCircle, Plus, Trash2, Wallet, Copy, Share2, Gift, Zap, HelpCircle } from 'lucide-react';
 
+const DEFAULT_REPO = 'https://github.com/Gurulabstech/GURU-MD';
+
 export default function DeployBot() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [sessionId, setSessionId] = useState('');
+  const [repoUrl, setRepoUrl] = useState(DEFAULT_REPO);
+  const [sessionVarName, setSessionVarName] = useState('SESSION_ID');
   const [region, setRegion] = useState('us');
   const [balance, setBalance] = useState(0);
   const [deployCost, setDeployCost] = useState(50);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
-  const [repos, setRepos] = useState<any[]>([]);
-  const [selectedRepo, setSelectedRepo] = useState('');
   const [customVars, setCustomVars] = useState<{ key: string; value: string }[]>([]);
   const [referralCode, setReferralCode] = useState('');
   const [referralCount, setReferralCount] = useState(0);
@@ -30,14 +32,11 @@ export default function DeployBot() {
     if (user) {
       Promise.all([
         supabase.from('profiles').select('balance, referral_code').eq('id', user.id).single(),
-        supabase.from('bot_repos').select('*').eq('active', true),
         supabase.from('platform_settings').select('*').eq('key', 'deploy_cost').single(),
         supabase.from('referrals').select('id', { count: 'exact', head: true }).eq('referrer_id', user.id).eq('status', 'completed'),
-      ]).then(([profileRes, reposRes, costRes, refRes]) => {
+      ]).then(([profileRes, costRes, refRes]) => {
         setBalance(profileRes.data?.balance || 0);
         setReferralCode(profileRes.data?.referral_code || '');
-        setRepos(reposRes.data || []);
-        if (reposRes.data && reposRes.data.length > 0) setSelectedRepo(reposRes.data[0].id);
         if (costRes.data) setDeployCost(parseInt(costRes.data.value) || 50);
         setReferralCount(refRes.count || 0);
         setFetching(false);
@@ -67,12 +66,14 @@ export default function DeployBot() {
     setCustomVars(updated);
   };
 
-  const selectedRepoData = repos.find(r => r.id === selectedRepo);
-
   const handleDeploy = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sessionId.trim()) {
       toast({ title: 'Session ID required', variant: 'destructive' });
+      return;
+    }
+    if (!repoUrl.trim()) {
+      toast({ title: 'Repository URL required', variant: 'destructive' });
       return;
     }
     if (balance < deployCost) {
@@ -88,9 +89,10 @@ export default function DeployBot() {
       const { data, error } = await supabase.functions.invoke('deploy-bot', {
         body: {
           sessionId: sessionId.trim(),
+          repoUrl: repoUrl.trim(),
+          sessionVarName: sessionVarName.trim() || 'SESSION_ID',
           region,
           userId: user?.id,
-          repoId: selectedRepo,
           customVars: extraVars,
         },
       });
@@ -122,7 +124,7 @@ export default function DeployBot() {
       <div className="max-w-2xl mx-auto space-y-6">
         <div>
           <h1 className="font-display text-3xl font-bold text-foreground">Deploy WhatsApp Bot</h1>
-          <p className="text-muted-foreground">Enter your session ID and deploy in one click</p>
+          <p className="text-muted-foreground">Deploy any WhatsApp bot MD repo — just like Heroku</p>
         </div>
 
         {/* Quick Action Cards */}
@@ -163,7 +165,7 @@ export default function DeployBot() {
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="font-display flex items-center gap-2"><Rocket className="w-5 h-5 text-primary" /> New Deployment</CardTitle>
-            <CardDescription>Cost: {deployCost} GRT • Bot: {selectedRepoData?.name || 'GURU-MD'}</CardDescription>
+            <CardDescription>Cost: {deployCost} GRT • Paste any GitHub repo URL</CardDescription>
           </CardHeader>
           <CardContent>
             {fetching ? (
@@ -183,47 +185,54 @@ export default function DeployBot() {
                   </div>
                 )}
 
-                {/* Hidden bot select — auto-selects first repo */}
-                {repos.length > 1 && (
-                  <div className="space-y-2">
-                    <Label>Bot Repository</Label>
-                    <Select value={selectedRepo} onValueChange={setSelectedRepo}>
-                      <SelectTrigger><SelectValue placeholder="Choose a bot" /></SelectTrigger>
-                      <SelectContent>
-                        {repos.map(r => (
-                          <SelectItem key={r.id} value={r.id}>
-                            {r.name} {r.description ? `— ${r.description}` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+                <div className="space-y-2">
+                  <Label htmlFor="repoUrl">GitHub Repository URL</Label>
+                  <Input
+                    id="repoUrl"
+                    placeholder="https://github.com/user/bot-repo"
+                    value={repoUrl}
+                    onChange={e => setRepoUrl(e.target.value)}
+                    required
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Any public GitHub repo with a valid <span className="font-mono">package.json</span>
+                  </p>
+                </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="session">Session ID</Label>
                   <Input
                     id="session"
-                    placeholder={`Paste your ${selectedRepoData?.name || 'GURU-MD'} session ID`}
+                    placeholder="Paste your bot session ID"
                     value={sessionId}
                     onChange={e => setSessionId(e.target.value)}
                     required
                     className="font-mono text-sm"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Stored as <span className="font-mono">{selectedRepoData?.session_var_name || 'SESSION_ID'}</span> env var
-                  </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Region</Label>
-                  <Select value={region} onValueChange={setRegion}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="us">🇺🇸 United States</SelectItem>
-                      <SelectItem value="eu">🇪🇺 Europe</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="sessionVar">Session Var Name</Label>
+                    <Input
+                      id="sessionVar"
+                      placeholder="SESSION_ID"
+                      value={sessionVarName}
+                      onChange={e => setSessionVarName(e.target.value)}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Region</Label>
+                    <Select value={region} onValueChange={setRegion}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="us">🇺🇸 United States</SelectItem>
+                        <SelectItem value="eu">🇪🇺 Europe</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 {/* Custom Vars */}
