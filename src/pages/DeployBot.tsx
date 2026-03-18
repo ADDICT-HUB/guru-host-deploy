@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
-import { Rocket, Loader2, AlertCircle, Plus, Trash2, Wallet, Copy, Share2, Gift, Zap, HelpCircle } from 'lucide-react';
+import { Rocket, Loader2, AlertCircle, Plus, Trash2, Wallet, Copy, Share2, Gift, Zap, HelpCircle, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 const DEFAULT_REPO = 'https://github.com/Gurulabstech/GURU-MD';
 
