@@ -348,6 +348,7 @@ export default function DeployBot() {
                         <Zap className="w-3 h-3" /> Auto-detected from README
                       </p>
                     )}
+                  </div>
                   <div className="space-y-2">
                     <Label>Region</Label>
                     <Select value={region} onValueChange={setRegion}>
