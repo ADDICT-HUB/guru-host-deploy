@@ -73,7 +73,7 @@ export default function DeployBot() {
 
         if (found.size > 0) {
           // Prefer exact match order
-          const priority = ['SESSION_ID', 'SESSION', 'BOT_SESSION', 'WA_SESSION'];
+          const priority = ['SESSION_ID', '_GET_SESSION_ID', 'SESSION', 'BOT_SESSION', 'WA_SESSION', 'QUEEN_SESSION', 'SILVA_SESSION', 'GURU_SESSION', 'AUTH_SESSION'];
           const detected = priority.find(p => found.has(p)) || [...found][0];
           setSessionVarName(detected);
           setAutoDetected(true);

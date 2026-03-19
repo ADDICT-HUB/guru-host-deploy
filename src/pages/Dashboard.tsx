@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
@@ -15,6 +16,7 @@ interface BotRow {
   session_id: string;
   status: string;
   created_at: string;
+  build_id?: string | null;
 }
 
 const statusColors: Record<string, string> = {
@@ -30,6 +32,7 @@ export default function Dashboard() {
   const [balance, setBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchData = async () => {
     if (!user) return;
@@ -43,21 +46,60 @@ export default function Dashboard() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [user]);
-
-  // Poll deploying bots every 15s
-  useEffect(() => {
-    const deployingBots = bots.filter(b => b.status === 'deploying');
+  // Poll build status for deploying bots
+  const pollBuildStatus = useCallback(async () => {
+    const deployingBots = bots.filter(b => b.status === 'deploying' && b.build_id);
     if (deployingBots.length === 0) return;
 
-    const interval = setInterval(() => { fetchData(); }, 15000);
-    return () => clearInterval(interval);
+    for (const bot of deployingBots) {
+      try {
+        const { data, error } = await supabase.functions.invoke('heroku-proxy', {
+          body: { action: 'build-status', appName: bot.app_name, buildId: bot.build_id, botId: bot.id },
+        });
+
+        if (error || !data) continue;
+
+        const buildStatus = data.status;
+        if (buildStatus === 'succeeded') {
+          setBots(prev => prev.map(b => b.id === bot.id ? { ...b, status: 'active' } : b));
+          toast({ title: '✅ Bot is live!', description: `${bot.app_name} deployed successfully` });
+        } else if (buildStatus === 'failed') {
+          setBots(prev => prev.map(b => b.id === bot.id ? { ...b, status: 'crashed' } : b));
+          toast({ title: '❌ Build failed', description: `${bot.app_name} build failed. Check logs.`, variant: 'destructive' });
+        }
+      } catch {
+        // silently continue
+      }
+    }
   }, [bots]);
+
+  useEffect(() => { fetchData(); }, [user]);
+
+  // Set up polling interval for deploying bots
+  useEffect(() => {
+    const hasDeploying = bots.some(b => b.status === 'deploying');
+
+    if (hasDeploying) {
+      // Poll every 10 seconds
+      pollRef.current = setInterval(() => {
+        pollBuildStatus();
+      }, 10000);
+      // Also poll immediately
+      pollBuildStatus();
+    }
+
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    };
+  }, [bots.filter(b => b.status === 'deploying').length, pollBuildStatus]);
 
   const handleRestart = async (bot: BotRow) => {
     setActionLoading(bot.id);
     const { error } = await supabase.functions.invoke('heroku-proxy', {
-      body: { action: 'restart', appName: bot.app_name },
+      body: { action: 'restart', appName: bot.app_name, botId: bot.id },
     });
     setActionLoading(null);
     if (error) toast({ title: 'Restart failed', description: error.message, variant: 'destructive' });
@@ -68,7 +110,7 @@ export default function Dashboard() {
     if (!confirm(`Delete ${bot.app_name}? This cannot be undone.`)) return;
     setActionLoading(bot.id);
     const { error } = await supabase.functions.invoke('heroku-proxy', {
-      body: { action: 'delete', appName: bot.app_name },
+      body: { action: 'delete', appName: bot.app_name, botId: bot.id },
     });
     if (!error) {
       await supabase.from('bots').delete().eq('id', bot.id);
@@ -151,19 +193,26 @@ export default function Dashboard() {
                         <span className="font-mono text-sm font-medium text-foreground truncate">{bot.app_name}</span>
                         <Badge className={`text-xs ${statusColors[bot.status] || statusColors.stopped}`}>
                           {bot.status === 'active' && <span className="w-1.5 h-1.5 bg-primary rounded-full mr-1 inline-block animate-pulse" />}
+                          {bot.status === 'deploying' && <Loader2 className="w-3 h-3 mr-1 inline-block animate-spin" />}
                           {bot.status}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground font-mono truncate">Session: {bot.session_id.substring(0, 20)}...</p>
+                      {bot.status === 'deploying' && (
+                        <div className="mt-2 space-y-1">
+                          <Progress value={undefined} className="h-1.5" />
+                          <p className="text-xs text-muted-foreground animate-pulse">Building... auto-updating every 10s</p>
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="gap-1" onClick={() => handleRestart(bot)} disabled={actionLoading === bot.id}>
+                      <Button variant="outline" size="sm" className="gap-1" onClick={() => handleRestart(bot)} disabled={actionLoading === bot.id || bot.status === 'deploying'}>
                         <RefreshCw className={`w-3 h-3 ${actionLoading === bot.id ? 'animate-spin' : ''}`} /> Restart
                       </Button>
                       <Link to={`/dashboard/bot/${bot.id}`}>
                         <Button variant="outline" size="sm" className="gap-1"><FileText className="w-3 h-3" /> Logs</Button>
                       </Link>
-                      <Button variant="outline" size="sm" className="gap-1 text-destructive hover:bg-destructive/10" onClick={() => handleDelete(bot)} disabled={actionLoading === bot.id}>
+                      <Button variant="outline" size="sm" className="gap-1 text-destructive hover:bg-destructive/10" onClick={() => handleDelete(bot)} disabled={actionLoading === bot.id || bot.status === 'deploying'}>
                         <Trash2 className="w-3 h-3" /> Delete
                       </Button>
                     </div>
