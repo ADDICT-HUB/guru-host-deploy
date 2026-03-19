@@ -329,14 +329,25 @@ export default function DeployBot() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="sessionVar">Session Var Name</Label>
-                    <Input
-                      id="sessionVar"
-                      placeholder="SESSION_ID"
-                      value={sessionVarName}
-                      onChange={e => setSessionVarName(e.target.value)}
-                      className="font-mono text-sm"
-                    />
-                  </div>
+                    <div className="relative">
+                      <Input
+                        id="sessionVar"
+                        placeholder="SESSION_ID"
+                        value={sessionVarName}
+                        onChange={e => { setSessionVarName(e.target.value); setAutoDetected(false); }}
+                        className="font-mono text-sm"
+                      />
+                      {detectingVar && (
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    {autoDetected && (
+                      <p className="text-xs text-primary flex items-center gap-1">
+                        <Zap className="w-3 h-3" /> Auto-detected from README
+                      </p>
+                    )}
                   <div className="space-y-2">
                     <Label>Region</Label>
                     <Select value={region} onValueChange={setRegion}>
