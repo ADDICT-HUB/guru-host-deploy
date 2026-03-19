@@ -29,6 +29,65 @@ export default function DeployBot() {
   const [referralCode, setReferralCode] = useState('');
   const [referralCount, setReferralCount] = useState(0);
   const [guideOpen, setGuideOpen] = useState(false);
+  const [detectingVar, setDetectingVar] = useState(false);
+  const [autoDetected, setAutoDetected] = useState(false);
+
+  // Auto-detect session var name from README when repo URL changes
+  useEffect(() => {
+    const detectSessionVar = async () => {
+      if (!repoUrl.trim() || !repoUrl.includes('github.com')) {
+        return;
+      }
+      // Extract owner/repo from GitHub URL
+      const match = repoUrl.replace(/\.git$/, '').replace(/\/+$/, '').match(/github\.com\/([^/]+)\/([^/]+)/);
+      if (!match) return;
+
+      setDetectingVar(true);
+      setAutoDetected(false);
+      try {
+        const res = await fetch(`https://api.github.com/repos/${match[1]}/${match[2]}/readme`, {
+          headers: { Accept: 'application/vnd.github.v3.raw' },
+        });
+        if (!res.ok) throw new Error('No README');
+        const readme = await res.text();
+
+        // Common patterns for session var names in WhatsApp bot READMEs
+        const patterns = [
+          /SESSION_ID/i,
+          /SESSION/i,
+          /BOT_SESSION/i,
+          /WA_SESSION/i,
+          /AUTH_SESSION/i,
+          /QUEEN_SESSION/i,
+          /SILVA_SESSION/i,
+          /GURU_SESSION/i,
+        ];
+
+        // Look for env var declarations like SESSION_ID= or `SESSION_ID` or SESSION_ID in config
+        const envVarPattern = /\b([A-Z_]*SESSION[A-Z_]*)\b/g;
+        const found = new Set<string>();
+        let m;
+        while ((m = envVarPattern.exec(readme)) !== null) {
+          found.add(m[1]);
+        }
+
+        if (found.size > 0) {
+          // Prefer exact match order
+          const priority = ['SESSION_ID', 'SESSION', 'BOT_SESSION', 'WA_SESSION'];
+          const detected = priority.find(p => found.has(p)) || [...found][0];
+          setSessionVarName(detected);
+          setAutoDetected(true);
+        }
+      } catch {
+        // Silently fail — user can still manually set
+      } finally {
+        setDetectingVar(false);
+      }
+    };
+
+    const timeout = setTimeout(detectSessionVar, 800); // debounce
+    return () => clearTimeout(timeout);
+  }, [repoUrl]);
 
   useEffect(() => {
     if (user) {
@@ -270,13 +329,25 @@ export default function DeployBot() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="sessionVar">Session Var Name</Label>
-                    <Input
-                      id="sessionVar"
-                      placeholder="SESSION_ID"
-                      value={sessionVarName}
-                      onChange={e => setSessionVarName(e.target.value)}
-                      className="font-mono text-sm"
-                    />
+                    <div className="relative">
+                      <Input
+                        id="sessionVar"
+                        placeholder="SESSION_ID"
+                        value={sessionVarName}
+                        onChange={e => { setSessionVarName(e.target.value); setAutoDetected(false); }}
+                        className="font-mono text-sm"
+                      />
+                      {detectingVar && (
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    {autoDetected && (
+                      <p className="text-xs text-primary flex items-center gap-1">
+                        <Zap className="w-3 h-3" /> Auto-detected from README
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label>Region</Label>
