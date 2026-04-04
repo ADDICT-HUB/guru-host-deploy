@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
     } catch { /* continue without team */ }
 
     // Build create payload & endpoint
-    const createBody: any = { name: appName, region: region || 'us', stack: 'heroku-24' };
+    const createBody: any = { name: appName, region: region || 'us', stack: 'heroku-22' };
     let createUrl = `${HEROKU_API}/apps`;
     if (teamName) {
       createUrl = `${HEROKU_API}/teams/apps`;
