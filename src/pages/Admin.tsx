@@ -519,6 +519,85 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
+          {/* Marketplace Tab */}
+          <TabsContent value="marketplace" className="space-y-4">
+            <Card className="bg-card border-border">
+              <CardHeader><CardTitle className="font-display flex items-center gap-2"><Store className="w-5 h-5 text-primary" /> Add Bot to Marketplace</CardTitle></CardHeader>
+              <CardContent>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Bot Name</Label>
+                    <Input placeholder="e.g. GURU-MD" value={mpName} onChange={e => setMpName(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">GitHub Repo URL</Label>
+                    <Input placeholder="https://github.com/user/bot" value={mpRepoUrl} onChange={e => setMpRepoUrl(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Description</Label>
+                    <Input placeholder="Short description" value={mpDesc} onChange={e => setMpDesc(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Pairing Link (optional)</Label>
+                    <Input placeholder="https://pair.example.com" value={mpPairingLink} onChange={e => setMpPairingLink(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Session Var Name</Label>
+                    <Input placeholder="SESSION_ID" value={mpSessionVar} onChange={e => setMpSessionVar(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Category</Label>
+                    <Input placeholder="general, premium, utility" value={mpCategory} onChange={e => setMpCategory(e.target.value)} />
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 mt-3">
+                  <div className="flex items-center gap-2">
+                    <Switch checked={mpFeatured} onCheckedChange={setMpFeatured} />
+                    <Label className="text-xs">Featured</Label>
+                  </div>
+                  <Button className="gap-2" onClick={addMarketplaceBot} disabled={!mpName || !mpRepoUrl}><Plus className="w-4 h-4" /> Add to Marketplace</Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-card border-border">
+              <CardHeader><CardTitle className="font-display">Marketplace Bots ({marketplaceBots.length})</CardTitle></CardHeader>
+              <CardContent>
+                {marketplaceBots.length === 0 ? <p className="text-muted-foreground text-center py-4">No marketplace bots yet</p> : (
+                  <div className="space-y-2">
+                    {marketplaceBots.map(mb => (
+                      <div key={mb.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-foreground">{mb.name}</p>
+                            {mb.featured && <Badge className="bg-guru-yellow/20 text-guru-yellow text-[10px]"><Star className="w-2.5 h-2.5 mr-0.5" />Featured</Badge>}
+                            <Badge variant="outline" className="text-[10px] capitalize">{mb.category}</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">{mb.description || mb.repo_url}</p>
+                          <p className="text-xs text-muted-foreground">Var: {mb.session_var_name} • {mb.deploy_count} deploys</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch checked={mb.active} onCheckedChange={() => toggleMarketplaceBotActive(mb.id, mb.active)} />
+                          <Button variant="ghost" size="sm" onClick={() => toggleMarketplaceBotFeatured(mb.id, mb.featured)}>
+                            <Star className={`w-4 h-4 ${mb.featured ? 'text-guru-yellow fill-guru-yellow' : 'text-muted-foreground'}`} />
+                          </Button>
+                          {mb.pairing_link && (
+                            <a href={mb.pairing_link} target="_blank" rel="noopener noreferrer">
+                              <Button variant="ghost" size="sm"><ExternalLink className="w-4 h-4" /></Button>
+                            </a>
+                          )}
+                          <Button variant="ghost" size="sm" className="text-destructive" onClick={() => deleteMarketplaceBot(mb.id)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* Bot Repos Tab */}
           <TabsContent value="repos" className="space-y-4">
             <Card className="bg-card border-border">
