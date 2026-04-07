@@ -140,6 +140,54 @@ export type Database = {
         }
         Relationships: []
       }
+      marketplace_bots: {
+        Row: {
+          active: boolean
+          category: string
+          created_at: string
+          deploy_count: number
+          description: string | null
+          featured: boolean
+          id: string
+          image_url: string | null
+          name: string
+          pairing_link: string | null
+          repo_url: string
+          session_var_name: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category?: string
+          created_at?: string
+          deploy_count?: number
+          description?: string | null
+          featured?: boolean
+          id?: string
+          image_url?: string | null
+          name: string
+          pairing_link?: string | null
+          repo_url: string
+          session_var_name?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category?: string
+          created_at?: string
+          deploy_count?: number
+          description?: string | null
+          featured?: boolean
+          id?: string
+          image_url?: string | null
+          name?: string
+          pairing_link?: string | null
+          repo_url?: string
+          session_var_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       platform_settings: {
         Row: {
           key: string
