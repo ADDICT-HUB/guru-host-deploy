@@ -21,7 +21,7 @@ interface BotRow {
   created_at: string;
   build_id?: string | null;
   repo_url?: string | null;
-  custom_vars?: Record<string, string> | null;
+  custom_vars?: any;
 }
 
 const statusColors: Record<string, string> = {
