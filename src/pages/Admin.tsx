@@ -60,21 +60,78 @@ export default function Admin() {
   }, [user]);
 
   const fetchAll = async () => {
-    const [txRes, usersRes, botsRes, keysRes, settingsRes, reposRes] = await Promise.all([
+    const [txRes, usersRes, botsRes, keysRes, settingsRes, reposRes, mpRes] = await Promise.all([
       supabase.from('transactions').select('*, profiles(display_name, email)').order('created_at', { ascending: false }),
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('bots').select('*, profiles(display_name, email)').order('created_at', { ascending: false }),
       supabase.from('heroku_api_keys').select('*').order('created_at', { ascending: false }),
       supabase.from('platform_settings').select('*'),
       supabase.from('bot_repos').select('*').order('created_at', { ascending: false }),
+      supabase.from('marketplace_bots').select('*').order('created_at', { ascending: false }),
     ]);
     setTransactions(txRes.data || []);
     setUsers(usersRes.data || []);
     setBots(botsRes.data || []);
     setApiKeys(keysRes.data || []);
     setBotRepos(reposRes.data || []);
+    setMarketplaceBots(mpRes.data || []);
     const costSetting = (settingsRes.data || []).find((s: any) => s.key === 'deploy_cost');
     if (costSetting) setDeployCost(costSetting.value);
+
+    // Check API key validity
+    checkApiKeys(keysRes.data || []);
+  };
+
+  const checkApiKeys = async (keys: any[]) => {
+    const activeKeys = keys.filter(k => k.active);
+    if (activeKeys.length === 0) {
+      setApiKeyExpired(true);
+      return;
+    }
+    try {
+      const { data } = await supabase.functions.invoke('heroku-proxy', {
+        body: { action: 'validate-key', apiKey: activeKeys[0].api_key },
+      });
+      if (data && !data.valid) {
+        setApiKeyExpired(true);
+        toast({ title: '⚠️ Heroku API Key Expired', description: 'Your active Heroku API key is no longer valid. Add a new one.', variant: 'destructive' });
+      } else {
+        setApiKeyExpired(false);
+      }
+    } catch { /* ignore */ }
+  };
+
+  const addMarketplaceBot = async () => {
+    if (!mpName || !mpRepoUrl) { toast({ title: 'Fill name and repo URL', variant: 'destructive' }); return; }
+    await supabase.from('marketplace_bots').insert({
+      name: mpName,
+      repo_url: mpRepoUrl,
+      description: mpDesc || null,
+      pairing_link: mpPairingLink || null,
+      session_var_name: mpSessionVar || 'SESSION_ID',
+      category: mpCategory || 'general',
+      featured: mpFeatured,
+    } as any);
+    setMpName(''); setMpRepoUrl(''); setMpDesc(''); setMpPairingLink(''); setMpSessionVar('SESSION_ID'); setMpCategory('general'); setMpFeatured(false);
+    toast({ title: 'Marketplace bot added' });
+    fetchAll();
+  };
+
+  const deleteMarketplaceBot = async (id: string) => {
+    if (!confirm('Delete this marketplace bot?')) return;
+    await supabase.from('marketplace_bots').delete().eq('id', id);
+    toast({ title: 'Deleted' });
+    fetchAll();
+  };
+
+  const toggleMarketplaceBotActive = async (id: string, active: boolean) => {
+    await supabase.from('marketplace_bots').update({ active: !active }).eq('id', id);
+    fetchAll();
+  };
+
+  const toggleMarketplaceBotFeatured = async (id: string, featured: boolean) => {
+    await supabase.from('marketplace_bots').update({ featured: !featured }).eq('id', id);
+    fetchAll();
   };
 
   const approveTransaction = async (tx: any) => {
