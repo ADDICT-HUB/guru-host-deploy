@@ -10,8 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
-import { Shield, Users, Bot, Wallet, CheckCircle, XCircle, Loader2, Plus, Trash2, Key, BarChart3, Ban, DollarSign, Settings, Package } from 'lucide-react';
-
+import { Shield, Users, Bot, Wallet, CheckCircle, XCircle, Loader2, Plus, Trash2, Key, BarChart3, Ban, DollarSign, Settings, Package, Store, ExternalLink, Star, Edit } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 export default function Admin() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -22,6 +22,7 @@ export default function Admin() {
   const [bots, setBots] = useState<any[]>([]);
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [botRepos, setBotRepos] = useState<any[]>([]);
+  const [marketplaceBots, setMarketplaceBots] = useState<any[]>([]);
   const [deployCost, setDeployCost] = useState('50');
   const [newKeyLabel, setNewKeyLabel] = useState('');
   const [newKeyValue, setNewKeyValue] = useState('');
@@ -36,6 +37,15 @@ export default function Admin() {
   const [newRepoUrl, setNewRepoUrl] = useState('');
   const [newRepoDesc, setNewRepoDesc] = useState('');
   const [newRepoSessionVar, setNewRepoSessionVar] = useState('SESSION_ID');
+  // Marketplace bot form
+  const [mpName, setMpName] = useState('');
+  const [mpRepoUrl, setMpRepoUrl] = useState('');
+  const [mpDesc, setMpDesc] = useState('');
+  const [mpPairingLink, setMpPairingLink] = useState('');
+  const [mpSessionVar, setMpSessionVar] = useState('SESSION_ID');
+  const [mpCategory, setMpCategory] = useState('general');
+  const [mpFeatured, setMpFeatured] = useState(false);
+  const [apiKeyExpired, setApiKeyExpired] = useState(false);
 
   useEffect(() => {
     if (user) {
