@@ -2,11 +2,12 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { Bot, LayoutDashboard, Rocket, Wallet, Settings, LogOut, Shield, Menu, X } from 'lucide-react';
+import { Bot, LayoutDashboard, Rocket, Wallet, Settings, LogOut, Shield, Menu, X, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const userLinks = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/dashboard/marketplace', label: 'Bot Store', icon: Store },
   { to: '/dashboard/deploy', label: 'Deploy Bot', icon: Rocket },
   { to: '/dashboard/fund', label: 'Fund Account', icon: Wallet },
 ];

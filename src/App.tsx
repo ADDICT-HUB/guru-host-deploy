@@ -13,6 +13,7 @@ import Dashboard from "./pages/Dashboard";
 import DeployBot from "./pages/DeployBot";
 import FundAccount from "./pages/FundAccount";
 import BotDetail from "./pages/BotDetail";
+import BotMarketplace from "./pages/BotMarketplace";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/dashboard/deploy" element={<DeployBot />} />
             <Route path="/dashboard/fund" element={<FundAccount />} />
             <Route path="/dashboard/bot/:id" element={<BotDetail />} />
+            <Route path="/dashboard/marketplace" element={<BotMarketplace />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
