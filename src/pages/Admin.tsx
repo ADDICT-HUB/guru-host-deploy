@@ -257,12 +257,26 @@ export default function Admin() {
           ))}
         </div>
 
+        {/* API Key Expiry Warning */}
+        {apiKeyExpired && (
+          <Card className="bg-destructive/10 border-destructive/30">
+            <CardContent className="p-4 flex items-center gap-3">
+              <Key className="w-5 h-5 text-destructive" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-destructive">⚠️ Heroku API Key Expired</p>
+                <p className="text-xs text-destructive/80">Your active API key is no longer valid. Add a new one to continue deployments.</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Tabs defaultValue="payments">
           <TabsList className="bg-secondary border border-border flex-wrap h-auto">
             <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="bots">All Bots</TabsTrigger>
-            <TabsTrigger value="apikeys">API Keys</TabsTrigger>
+            <TabsTrigger value="apikeys">API Keys {apiKeyExpired && '⚠️'}</TabsTrigger>
+            <TabsTrigger value="marketplace">Marketplace</TabsTrigger>
             <TabsTrigger value="repos">Bot Repos</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
