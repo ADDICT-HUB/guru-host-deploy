@@ -10,8 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
-import { Shield, Users, Bot, Wallet, CheckCircle, XCircle, Loader2, Plus, Trash2, Key, BarChart3, Ban, DollarSign, Settings, Package } from 'lucide-react';
-
+import { Shield, Users, Bot, Wallet, CheckCircle, XCircle, Loader2, Plus, Trash2, Key, BarChart3, Ban, DollarSign, Settings, Package, Store, ExternalLink, Star, Edit } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 export default function Admin() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -22,6 +22,7 @@ export default function Admin() {
   const [bots, setBots] = useState<any[]>([]);
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [botRepos, setBotRepos] = useState<any[]>([]);
+  const [marketplaceBots, setMarketplaceBots] = useState<any[]>([]);
   const [deployCost, setDeployCost] = useState('50');
   const [newKeyLabel, setNewKeyLabel] = useState('');
   const [newKeyValue, setNewKeyValue] = useState('');
@@ -36,6 +37,15 @@ export default function Admin() {
   const [newRepoUrl, setNewRepoUrl] = useState('');
   const [newRepoDesc, setNewRepoDesc] = useState('');
   const [newRepoSessionVar, setNewRepoSessionVar] = useState('SESSION_ID');
+  // Marketplace bot form
+  const [mpName, setMpName] = useState('');
+  const [mpRepoUrl, setMpRepoUrl] = useState('');
+  const [mpDesc, setMpDesc] = useState('');
+  const [mpPairingLink, setMpPairingLink] = useState('');
+  const [mpSessionVar, setMpSessionVar] = useState('SESSION_ID');
+  const [mpCategory, setMpCategory] = useState('general');
+  const [mpFeatured, setMpFeatured] = useState(false);
+  const [apiKeyExpired, setApiKeyExpired] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -50,21 +60,78 @@ export default function Admin() {
   }, [user]);
 
   const fetchAll = async () => {
-    const [txRes, usersRes, botsRes, keysRes, settingsRes, reposRes] = await Promise.all([
+    const [txRes, usersRes, botsRes, keysRes, settingsRes, reposRes, mpRes] = await Promise.all([
       supabase.from('transactions').select('*, profiles(display_name, email)').order('created_at', { ascending: false }),
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('bots').select('*, profiles(display_name, email)').order('created_at', { ascending: false }),
       supabase.from('heroku_api_keys').select('*').order('created_at', { ascending: false }),
       supabase.from('platform_settings').select('*'),
       supabase.from('bot_repos').select('*').order('created_at', { ascending: false }),
+      supabase.from('marketplace_bots').select('*').order('created_at', { ascending: false }),
     ]);
     setTransactions(txRes.data || []);
     setUsers(usersRes.data || []);
     setBots(botsRes.data || []);
     setApiKeys(keysRes.data || []);
     setBotRepos(reposRes.data || []);
+    setMarketplaceBots(mpRes.data || []);
     const costSetting = (settingsRes.data || []).find((s: any) => s.key === 'deploy_cost');
     if (costSetting) setDeployCost(costSetting.value);
+
+    // Check API key validity
+    checkApiKeys(keysRes.data || []);
+  };
+
+  const checkApiKeys = async (keys: any[]) => {
+    const activeKeys = keys.filter(k => k.active);
+    if (activeKeys.length === 0) {
+      setApiKeyExpired(true);
+      return;
+    }
+    try {
+      const { data } = await supabase.functions.invoke('heroku-proxy', {
+        body: { action: 'validate-key', apiKey: activeKeys[0].api_key },
+      });
+      if (data && !data.valid) {
+        setApiKeyExpired(true);
+        toast({ title: '⚠️ Heroku API Key Expired', description: 'Your active Heroku API key is no longer valid. Add a new one.', variant: 'destructive' });
+      } else {
+        setApiKeyExpired(false);
+      }
+    } catch { /* ignore */ }
+  };
+
+  const addMarketplaceBot = async () => {
+    if (!mpName || !mpRepoUrl) { toast({ title: 'Fill name and repo URL', variant: 'destructive' }); return; }
+    await supabase.from('marketplace_bots').insert({
+      name: mpName,
+      repo_url: mpRepoUrl,
+      description: mpDesc || null,
+      pairing_link: mpPairingLink || null,
+      session_var_name: mpSessionVar || 'SESSION_ID',
+      category: mpCategory || 'general',
+      featured: mpFeatured,
+    } as any);
+    setMpName(''); setMpRepoUrl(''); setMpDesc(''); setMpPairingLink(''); setMpSessionVar('SESSION_ID'); setMpCategory('general'); setMpFeatured(false);
+    toast({ title: 'Marketplace bot added' });
+    fetchAll();
+  };
+
+  const deleteMarketplaceBot = async (id: string) => {
+    if (!confirm('Delete this marketplace bot?')) return;
+    await supabase.from('marketplace_bots').delete().eq('id', id);
+    toast({ title: 'Deleted' });
+    fetchAll();
+  };
+
+  const toggleMarketplaceBotActive = async (id: string, active: boolean) => {
+    await supabase.from('marketplace_bots').update({ active: !active }).eq('id', id);
+    fetchAll();
+  };
+
+  const toggleMarketplaceBotFeatured = async (id: string, featured: boolean) => {
+    await supabase.from('marketplace_bots').update({ featured: !featured }).eq('id', id);
+    fetchAll();
   };
 
   const approveTransaction = async (tx: any) => {
@@ -190,12 +257,26 @@ export default function Admin() {
           ))}
         </div>
 
+        {/* API Key Expiry Warning */}
+        {apiKeyExpired && (
+          <Card className="bg-destructive/10 border-destructive/30">
+            <CardContent className="p-4 flex items-center gap-3">
+              <Key className="w-5 h-5 text-destructive" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-destructive">⚠️ Heroku API Key Expired</p>
+                <p className="text-xs text-destructive/80">Your active API key is no longer valid. Add a new one to continue deployments.</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Tabs defaultValue="payments">
           <TabsList className="bg-secondary border border-border flex-wrap h-auto">
             <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="bots">All Bots</TabsTrigger>
-            <TabsTrigger value="apikeys">API Keys</TabsTrigger>
+            <TabsTrigger value="apikeys">API Keys {apiKeyExpired && '⚠️'}</TabsTrigger>
+            <TabsTrigger value="marketplace">Marketplace</TabsTrigger>
             <TabsTrigger value="repos">Bot Repos</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
@@ -430,6 +511,85 @@ export default function Admin() {
                         <Button variant="ghost" size="sm" className="text-destructive" onClick={() => deleteApiKey(k.id)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Marketplace Tab */}
+          <TabsContent value="marketplace" className="space-y-4">
+            <Card className="bg-card border-border">
+              <CardHeader><CardTitle className="font-display flex items-center gap-2"><Store className="w-5 h-5 text-primary" /> Add Bot to Marketplace</CardTitle></CardHeader>
+              <CardContent>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Bot Name</Label>
+                    <Input placeholder="e.g. GURU-MD" value={mpName} onChange={e => setMpName(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">GitHub Repo URL</Label>
+                    <Input placeholder="https://github.com/user/bot" value={mpRepoUrl} onChange={e => setMpRepoUrl(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Description</Label>
+                    <Input placeholder="Short description" value={mpDesc} onChange={e => setMpDesc(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Pairing Link (optional)</Label>
+                    <Input placeholder="https://pair.example.com" value={mpPairingLink} onChange={e => setMpPairingLink(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Session Var Name</Label>
+                    <Input placeholder="SESSION_ID" value={mpSessionVar} onChange={e => setMpSessionVar(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Category</Label>
+                    <Input placeholder="general, premium, utility" value={mpCategory} onChange={e => setMpCategory(e.target.value)} />
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 mt-3">
+                  <div className="flex items-center gap-2">
+                    <Switch checked={mpFeatured} onCheckedChange={setMpFeatured} />
+                    <Label className="text-xs">Featured</Label>
+                  </div>
+                  <Button className="gap-2" onClick={addMarketplaceBot} disabled={!mpName || !mpRepoUrl}><Plus className="w-4 h-4" /> Add to Marketplace</Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-card border-border">
+              <CardHeader><CardTitle className="font-display">Marketplace Bots ({marketplaceBots.length})</CardTitle></CardHeader>
+              <CardContent>
+                {marketplaceBots.length === 0 ? <p className="text-muted-foreground text-center py-4">No marketplace bots yet</p> : (
+                  <div className="space-y-2">
+                    {marketplaceBots.map(mb => (
+                      <div key={mb.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 border border-border">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-foreground">{mb.name}</p>
+                            {mb.featured && <Badge className="bg-guru-yellow/20 text-guru-yellow text-[10px]"><Star className="w-2.5 h-2.5 mr-0.5" />Featured</Badge>}
+                            <Badge variant="outline" className="text-[10px] capitalize">{mb.category}</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">{mb.description || mb.repo_url}</p>
+                          <p className="text-xs text-muted-foreground">Var: {mb.session_var_name} • {mb.deploy_count} deploys</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Switch checked={mb.active} onCheckedChange={() => toggleMarketplaceBotActive(mb.id, mb.active)} />
+                          <Button variant="ghost" size="sm" onClick={() => toggleMarketplaceBotFeatured(mb.id, mb.featured)}>
+                            <Star className={`w-4 h-4 ${mb.featured ? 'text-guru-yellow fill-guru-yellow' : 'text-muted-foreground'}`} />
+                          </Button>
+                          {mb.pairing_link && (
+                            <a href={mb.pairing_link} target="_blank" rel="noopener noreferrer">
+                              <Button variant="ghost" size="sm"><ExternalLink className="w-4 h-4" /></Button>
+                            </a>
+                          )}
+                          <Button variant="ghost" size="sm" className="text-destructive" onClick={() => deleteMarketplaceBot(mb.id)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>

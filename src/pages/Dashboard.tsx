@@ -8,7 +8,10 @@ import { Progress } from '@/components/ui/progress';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from '@/hooks/use-toast';
-import { Rocket, Wallet, Bot, RefreshCw, Trash2, FileText, Loader2 } from 'lucide-react';
+import BotHealthBar from '@/components/BotHealthBar';
+import BuildLogsViewer from '@/components/BuildLogsViewer';
+import LiveLogs from '@/components/LiveLogs';
+import { Rocket, Wallet, Bot, RefreshCw, Trash2, FileText, Loader2, Terminal, Radio, Store, Eye, Settings2, Power } from 'lucide-react';
 
 interface BotRow {
   id: string;
@@ -17,6 +20,8 @@ interface BotRow {
   status: string;
   created_at: string;
   build_id?: string | null;
+  repo_url?: string | null;
+  custom_vars?: any;
 }
 
 const statusColors: Record<string, string> = {
@@ -33,6 +38,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [buildLogsBot, setBuildLogsBot] = useState<BotRow | null>(null);
+  const [liveLogsBot, setLiveLogsBot] = useState<BotRow | null>(null);
 
   const fetchData = async () => {
     if (!user) return;
@@ -46,7 +53,6 @@ export default function Dashboard() {
     setLoading(false);
   };
 
-  // Poll build status for deploying bots
   const pollBuildStatus = useCallback(async () => {
     const deployingBots = bots.filter(b => b.status === 'deploying' && b.build_id);
     if (deployingBots.length === 0) return;
@@ -56,44 +62,27 @@ export default function Dashboard() {
         const { data, error } = await supabase.functions.invoke('heroku-proxy', {
           body: { action: 'build-status', appName: bot.app_name, buildId: bot.build_id, botId: bot.id },
         });
-
         if (error || !data) continue;
-
-        const buildStatus = data.status;
-        if (buildStatus === 'succeeded') {
+        if (data.status === 'succeeded') {
           setBots(prev => prev.map(b => b.id === bot.id ? { ...b, status: 'active' } : b));
           toast({ title: '✅ Bot is live!', description: `${bot.app_name} deployed successfully` });
-        } else if (buildStatus === 'failed') {
+        } else if (data.status === 'failed') {
           setBots(prev => prev.map(b => b.id === bot.id ? { ...b, status: 'crashed' } : b));
           toast({ title: '❌ Build failed', description: `${bot.app_name} build failed. Check logs.`, variant: 'destructive' });
         }
-      } catch {
-        // silently continue
-      }
+      } catch { /* silently continue */ }
     }
   }, [bots]);
 
   useEffect(() => { fetchData(); }, [user]);
 
-  // Set up polling interval for deploying bots
   useEffect(() => {
     const hasDeploying = bots.some(b => b.status === 'deploying');
-
     if (hasDeploying) {
-      // Poll every 10 seconds
-      pollRef.current = setInterval(() => {
-        pollBuildStatus();
-      }, 10000);
-      // Also poll immediately
+      pollRef.current = setInterval(() => pollBuildStatus(), 10000);
       pollBuildStatus();
     }
-
-    return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    };
+    return () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
   }, [bots.filter(b => b.status === 'deploying').length, pollBuildStatus]);
 
   const handleRestart = async (bot: BotRow) => {
@@ -124,55 +113,68 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8">
+      <div className="space-y-6">
         <div>
           <h1 className="font-display text-3xl font-bold text-foreground">Dashboard</h1>
           <p className="text-muted-foreground">Manage your GURU-MD bots</p>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Card className="bg-card border-border">
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><Wallet className="w-5 h-5 text-primary" /></div>
+            <CardContent className="p-3 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center"><Wallet className="w-4 h-4 text-primary" /></div>
               <div>
-                <p className="text-sm text-muted-foreground">GRT Balance</p>
-                <p className="text-2xl font-display font-bold text-foreground">{balance}</p>
+                <p className="text-xs text-muted-foreground">GRT Balance</p>
+                <p className="text-xl font-display font-bold text-foreground">{balance}</p>
               </div>
             </CardContent>
           </Card>
           <Card className="bg-card border-border">
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><Bot className="w-5 h-5 text-primary" /></div>
+            <CardContent className="p-3 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center"><Bot className="w-4 h-4 text-primary" /></div>
               <div>
-                <p className="text-sm text-muted-foreground">Active Bots</p>
-                <p className="text-2xl font-display font-bold text-foreground">{bots.filter(b => b.status === 'active').length}</p>
+                <p className="text-xs text-muted-foreground">Total Bots</p>
+                <p className="text-xl font-display font-bold text-foreground">{bots.length}</p>
               </div>
             </CardContent>
           </Card>
           <Card className="bg-card border-border">
-            <CardContent className="p-4 flex items-center gap-4">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><Rocket className="w-5 h-5 text-primary" /></div>
+            <CardContent className="p-3 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center"><Power className="w-4 h-4 text-primary" /></div>
               <div>
-                <p className="text-sm text-muted-foreground">Total Deploys</p>
-                <p className="text-2xl font-display font-bold text-foreground">{bots.length}</p>
+                <p className="text-xs text-muted-foreground">Active</p>
+                <p className="text-xl font-display font-bold text-foreground">{bots.filter(b => b.status === 'active').length}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-card border-border">
+            <CardContent className="p-3 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-destructive/10 flex items-center justify-center"><Rocket className="w-4 h-4 text-destructive" /></div>
+              <div>
+                <p className="text-xs text-muted-foreground">Issues</p>
+                <p className="text-xl font-display font-bold text-foreground">{bots.filter(b => b.status === 'crashed').length}</p>
               </div>
             </CardContent>
           </Card>
         </div>
 
+        {/* Health Bar */}
+        {bots.length > 0 && <BotHealthBar bots={bots} />}
+
         {/* Quick Actions */}
-        <div className="flex gap-3">
-          <Link to="/dashboard/deploy"><Button className="glow-green gap-2"><Rocket className="w-4 h-4" /> Deploy New Bot</Button></Link>
-          <Link to="/dashboard/fund"><Button variant="outline" className="gap-2"><Wallet className="w-4 h-4" /> Fund Account</Button></Link>
+        <div className="flex gap-2 flex-wrap">
+          <Link to="/dashboard/deploy"><Button className="glow-green gap-2" size="sm"><Rocket className="w-4 h-4" /> Deploy Bot</Button></Link>
+          <Link to="/dashboard/marketplace"><Button variant="outline" size="sm" className="gap-2"><Store className="w-4 h-4" /> Bot Store</Button></Link>
+          <Link to="/dashboard/fund"><Button variant="outline" size="sm" className="gap-2"><Wallet className="w-4 h-4" /> Fund Account</Button></Link>
+          <Button variant="outline" size="sm" className="gap-2" onClick={fetchData}><RefreshCw className="w-4 h-4" /> Refresh</Button>
         </div>
 
         {/* Bot List */}
         <Card className="bg-card border-border">
           <CardHeader>
             <CardTitle className="font-display flex items-center justify-between">
-              <span>My Bots</span>
-              <Button variant="ghost" size="sm" onClick={fetchData}><RefreshCw className="w-4 h-4" /></Button>
+              <span>My Bots ({bots.length})</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -182,7 +184,10 @@ export default function Dashboard() {
               <div className="text-center py-8 text-muted-foreground">
                 <Bot className="w-12 h-12 mx-auto mb-3 opacity-30" />
                 <p>No bots deployed yet</p>
-                <Link to="/dashboard/deploy"><Button className="mt-3 gap-2" size="sm"><Rocket className="w-4 h-4" /> Deploy Your First Bot</Button></Link>
+                <div className="flex gap-2 justify-center mt-3">
+                  <Link to="/dashboard/deploy"><Button size="sm" className="gap-2"><Rocket className="w-4 h-4" /> Deploy Bot</Button></Link>
+                  <Link to="/dashboard/marketplace"><Button size="sm" variant="outline" className="gap-2"><Store className="w-4 h-4" /> Browse Bots</Button></Link>
+                </div>
               </div>
             ) : (
               <div className="space-y-3">
@@ -198,6 +203,7 @@ export default function Dashboard() {
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground font-mono truncate">Session: {bot.session_id.substring(0, 20)}...</p>
+                      {bot.repo_url && <p className="text-xs text-muted-foreground truncate">Repo: {bot.repo_url.split('/').slice(-2).join('/')}</p>}
                       {bot.status === 'deploying' && (
                         <div className="mt-2 space-y-1">
                           <Progress value={undefined} className="h-1.5" />
@@ -205,15 +211,21 @@ export default function Dashboard() {
                         </div>
                       )}
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="gap-1" onClick={() => handleRestart(bot)} disabled={actionLoading === bot.id || bot.status === 'deploying'}>
+                    <div className="flex gap-1.5 flex-wrap">
+                      <Button variant="outline" size="sm" className="gap-1 text-xs h-8" onClick={() => handleRestart(bot)} disabled={actionLoading === bot.id || bot.status === 'deploying'}>
                         <RefreshCw className={`w-3 h-3 ${actionLoading === bot.id ? 'animate-spin' : ''}`} /> Restart
                       </Button>
+                      <Button variant="outline" size="sm" className="gap-1 text-xs h-8" onClick={() => setBuildLogsBot(bot)}>
+                        <FileText className="w-3 h-3" /> Build
+                      </Button>
+                      <Button variant="outline" size="sm" className="gap-1 text-xs h-8" onClick={() => setLiveLogsBot(bot)}>
+                        <Radio className="w-3 h-3" /> Live
+                      </Button>
                       <Link to={`/dashboard/bot/${bot.id}`}>
-                        <Button variant="outline" size="sm" className="gap-1"><FileText className="w-3 h-3" /> Logs</Button>
+                        <Button variant="outline" size="sm" className="gap-1 text-xs h-8"><Eye className="w-3 h-3" /> Details</Button>
                       </Link>
-                      <Button variant="outline" size="sm" className="gap-1 text-destructive hover:bg-destructive/10" onClick={() => handleDelete(bot)} disabled={actionLoading === bot.id || bot.status === 'deploying'}>
-                        <Trash2 className="w-3 h-3" /> Delete
+                      <Button variant="outline" size="sm" className="gap-1 text-xs h-8 text-destructive hover:bg-destructive/10" onClick={() => handleDelete(bot)} disabled={actionLoading === bot.id || bot.status === 'deploying'}>
+                        <Trash2 className="w-3 h-3" />
                       </Button>
                     </div>
                   </div>
@@ -223,6 +235,10 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modals */}
+      {buildLogsBot && <BuildLogsViewer open={!!buildLogsBot} onOpenChange={(v) => !v && setBuildLogsBot(null)} bot={buildLogsBot} />}
+      {liveLogsBot && <LiveLogs open={!!liveLogsBot} onOpenChange={(v) => !v && setLiveLogsBot(null)} bot={liveLogsBot} />}
     </DashboardLayout>
   );
 }

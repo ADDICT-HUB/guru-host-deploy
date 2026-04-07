@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action, appName, apiKey, botId } = body;
 
-    // Resolve API key: use provided key, or look up from bot's linked heroku_api_key_id
+    // Resolve API key
     let key = apiKey;
     if (!key && botId) {
       const { data: bot } = await supabase.from('bots').select('heroku_api_key_id').eq('id', botId).single();
@@ -39,7 +39,6 @@ Deno.serve(async (req) => {
       }
     }
     if (!key) {
-      // Fallback: grab any active key
       const { data: keys } = await supabase.from('heroku_api_keys').select('api_key').eq('active', true).limit(1);
       if (keys && keys.length > 0) key = keys[0].api_key;
     }
@@ -111,16 +110,96 @@ Deno.serve(async (req) => {
         const buildData = await res.json();
         result = buildData;
 
-        // Auto-update bot status in DB if build succeeded or failed
         if (botId && buildData.status) {
           let newStatus: string | null = null;
           if (buildData.status === 'succeeded') newStatus = 'active';
           else if (buildData.status === 'failed') newStatus = 'crashed';
-
           if (newStatus) {
             await supabase.from('bots').update({ status: newStatus }).eq('id', botId);
           }
         }
+        break;
+      }
+      case 'build-output': {
+        const { buildId } = body;
+        if (!buildId) {
+          result = { output: 'No build ID available' };
+          break;
+        }
+        // Get build result which includes output_stream_url
+        const res = await fetch(`${HEROKU_API}/apps/${appName}/builds/${buildId}/result`, {
+          headers: getHeaders(key),
+        });
+        if (res.ok) {
+          const buildResult = await res.json();
+          // Also get the build itself for output_stream_url
+          const buildRes = await fetch(`${HEROKU_API}/apps/${appName}/builds/${buildId}`, {
+            headers: getHeaders(key),
+          });
+          const buildData = await buildRes.json();
+          
+          let output = '';
+          if (buildData.output_stream_url) {
+            try {
+              const streamRes = await fetch(buildData.output_stream_url);
+              output = await streamRes.text();
+            } catch {
+              output = '';
+            }
+          }
+          
+          if (!output && buildResult.lines) {
+            output = buildResult.lines.map((l: any) => `${l.stream}: ${l.line}`).join('');
+          }
+          
+          result = { 
+            output: output || 'No build output available', 
+            status: buildData.status,
+            buildpack_provided_description: buildData.buildpack_provided_description,
+          };
+        } else {
+          result = { output: 'Failed to fetch build output' };
+        }
+        break;
+      }
+      case 'validate-key': {
+        // Validate a Heroku API key by calling /account
+        const testKey = body.testKey || key;
+        try {
+          const res = await fetch(`${HEROKU_API}/account`, {
+            headers: getHeaders(testKey),
+          });
+          if (res.ok) {
+            result = { valid: true };
+          } else {
+            result = { valid: false, status: res.status };
+            // If this is the currently active key, mark it as expired
+            if (!body.testKey) {
+              await supabase.from('heroku_api_keys').update({ active: false }).eq('api_key', key);
+              // Try to activate next available key
+              const { data: nextKeys } = await supabase.from('heroku_api_keys').select('id, api_key').eq('active', false).neq('api_key', key).limit(5);
+              if (nextKeys) {
+                for (const nk of nextKeys) {
+                  const checkRes = await fetch(`${HEROKU_API}/account`, { headers: getHeaders(nk.api_key) });
+                  if (checkRes.ok) {
+                    await supabase.from('heroku_api_keys').update({ active: true }).eq('id', nk.id);
+                    result = { valid: false, status: res.status, switched_to: nk.id };
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) {
+          result = { valid: false, error: e.message };
+        }
+        break;
+      }
+      case 'config-vars': {
+        const res = await fetch(`${HEROKU_API}/apps/${appName}/config-vars`, {
+          headers: getHeaders(key),
+        });
+        result = await res.json();
         break;
       }
       default:
